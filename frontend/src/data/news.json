@@ -1,0 +1,47 @@
+{
+  "hero": {
+    "category": "Climate & Science",
+    "title": "A city designed for the heat to come",
+    "excerpt": "As temperatures reshape urban life, a new generation of architects is finding unexpected ways to make our streets cooler, calmer and more alive.",
+    "author": "Maya Chen",
+    "readTime": "6 min read",
+    "date": "September 7, 2026",
+    "image": "https://images.unsplash.com/photo-1511818966892-d7d671e672a2?auto=format&fit=crop&w=1600&q=85"
+  },
+  "article": {
+    "authorInitials": "MC",
+    "toc": [{ "id": "city", "label": "A heat-conscious city" }, { "id": "streets", "label": "The street as refuge" }, { "id": "next", "label": "What comes next" }],
+    "body": [
+      { "type": "lead", "text": "By noon, the sidewalks of Valencia are quiet. Not empty, exactly. Just moving at a different speed — one shaped by shade, water, and a new understanding of what makes a city livable." },
+      { "type": "paragraph", "id": "city", "text": "Across the world, the ordinary assumptions of urban life are being re-drawn. Cities built to trap warmth are now finding ways to release it. The most interesting answers are not always grand gestures, but small, human ones: a shaded crossing, a cooler bus stop, a place to sit beneath a tree." },
+      { "type": "heading", "text": "The city as a living system" },
+      { "type": "paragraph", "text": "For decades, development has prized speed and density above nearly everything else. But extreme heat has made the cost of that approach impossible to ignore. A new cohort of designers is beginning with a different question: how should a neighbourhood feel at three in the afternoon?" },
+      { "type": "quote", "text": "The goal is not to escape the city. It’s to make being in it a pleasure again." },
+      { "type": "paragraph", "id": "streets", "text": "That shift is already visible in the details. Wider tree canopies. Pockets of planting where there used to be pavement. Schools that double as cooling centres. These changes offer more than relief: they make room for chance encounters and longer, slower days outside." },
+      { "type": "heading", "id": "next", "text": "The future is closer than it looks" },
+      { "type": "paragraph", "text": "The good news is that the tools are here. The harder work is choosing to use them — and believing that a cooler city can also be a more generous one." }
+    ]
+  },
+  "channel": {
+    "name": "Technology",
+    "headline": "Technology, with a pulse.",
+    "description": "The people, ideas and inventions shaping how we live — without losing sight of what makes us human.",
+    "featureLabel": "Editor's pick",
+    "featureDescription": "Some of the most exciting experiments in technology are happening in institutions we’ve always known.",
+    "tabs": ["Latest", "Ideas", "People", "Future"],
+    "storyCount": "12 stories"
+  },
+  "stories": [
+    { "id": "library-revolution", "category": "Technology", "title": "The quiet revolution happening inside our public libraries", "excerpt": "The institutions built around books are becoming the most welcoming labs for civic technology.", "author": "Jordan Lee", "readTime": "4 min read", "date": "September 6, 2026", "image": "https://images.unsplash.com/photo-1521587760476-6c12a4b040da?auto=format&fit=crop&w=900&q=85" },
+    { "id": "music-neighbourhood", "category": "Culture", "title": "Why the next great music scene might be in your neighbourhood", "excerpt": "Small rooms, patient crowds and local organisers are changing what it means to discover a sound.", "author": "Ari Patel", "readTime": "7 min read", "date": "September 5, 2026", "image": "https://images.unsplash.com/photo-1524368535928-5b5e00ddc76b?auto=format&fit=crop&w=900&q=85" },
+    { "id": "personal-internet", "category": "Business", "title": "Small makers are building a more personal internet", "excerpt": "A growing group of independent builders is choosing useful, durable ideas over runaway scale.", "author": "Noah Kim", "readTime": "5 min read", "date": "September 4, 2026", "image": "https://images.unsplash.com/photo-1497366754035-f200968a6e72?auto=format&fit=crop&w=900&q=85" },
+    { "id": "quieter-digital-life", "category": "Technology", "title": "The people building tools for a quieter digital life", "excerpt": "New software is making attention feel less like a commodity and more like something worth protecting.", "author": "Zoe Martin", "readTime": "6 min read", "date": "September 3, 2026", "image": "https://images.unsplash.com/photo-1516321318423-f06f85e504b3?auto=format&fit=crop&w=900&q=85" }
+  ],
+  "trending": [
+    { "storyId": "library-revolution", "label": "Can walking really make you more creative?" },
+    { "storyId": "music-neighbourhood", "label": "The cities making room for play" },
+    { "storyId": "personal-internet", "label": "Inside the return of analog photography" },
+    { "storyId": "quieter-digital-life", "label": "What a slower inbox can teach us" },
+    { "storyId": "library-revolution", "label": "A new vocabulary for better public spaces" }
+  ]
+}

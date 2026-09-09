@@ -1,0 +1,110 @@
+services:
+  mongo:
+    image: mongo:8
+    restart: unless-stopped
+    # Linux kernels 6.19+ can trip MongoDB's TCMalloc startup guard.
+    # Disable glibc rseq for this container until the host/kernel combination is fixed.
+    environment:
+      GLIBC_TUNABLES: glibc.pthread.rseq=1
+    ports:
+      - "${MONGO_PORT:-27017}:27017"
+    volumes:
+      - mongo_data:/data/db
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.runCommand({ ping: 1 }).ok"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    restart: unless-stopped
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "${MINIO_API_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9000/minio/health/live || exit 1"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 10s
+
+  minio-init:
+    image: minio/mc:latest
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >-
+      /bin/sh -c "until mc alias set local http://minio:9000 minioadmin minioadmin; do sleep 2; done;
+      mc mb --ignore-existing local/newsforge-media;
+      mc anonymous set download local/newsforge-media"
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      MONGODB_URI: mongodb://mongo:27017
+      MONGODB_DATABASE: newsforge
+      S3_ENDPOINT_URL: http://minio:9000
+      S3_BUCKET: newsforge-media
+      S3_ACCESS_KEY: minioadmin
+      S3_SECRET_KEY: minioadmin
+      S3_PUBLIC_BASE_URL: http://localhost:${MINIO_API_PORT:-9000}/newsforge-media
+      CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://localhost:${STUDIO_PORT:-5174},http://localhost:${BACKEND_PORT:-8000}
+      APP_ENV: development
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@newsforge.dev}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-NewsForgeAdmin#2026}
+      BOOTSTRAP_ADMIN_DISPLAY_NAME: ${BOOTSTRAP_ADMIN_DISPLAY_NAME:-NewsForge Administrator}
+      JWT_SECRET: ${JWT_SECRET:-newsforge-local-development-secret-change-before-production}
+      LLM_PROVIDER: ${LLM_PROVIDER:-gemini_enterprise}
+      ENABLE_MOCK_AI: ${ENABLE_MOCK_AI:-false}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-AQ.Ab8RN6Jg5nDg-XXtM0hnzZS50ka_Wyow3h5OkwsZaSPA20TAwA}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-project-bd5215ca-023d-4a9e-b63}
+      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
+      GEMINI_SELECTION_MODEL: ${GEMINI_SELECTION_MODEL:-gemini-2.5-flash}
+      GEMINI_PRODUCTION_MODEL: ${GEMINI_PRODUCTION_MODEL:-gemini-2.5-flash}
+      GEMINI_TELEMETRY_MODEL: ${GEMINI_TELEMETRY_MODEL:-gemini-2.5-flash}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-2.5-flash}
+    depends_on:
+      mongo:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+
+  frontend:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${FRONTEND_PORT:-5173}:5173"
+
+  studio:
+    build:
+      context: .
+      dockerfile: studio/Dockerfile
+    restart: unless-stopped
+    environment:
+      # Same-origin API proxy avoids browser CORS failures when Studio is opened
+      # from localhost, 127.0.0.1, a LAN IP, or a reverse proxy.
+      VITE_API_BASE_URL: /api/v1
+      VITE_DEV_API_TARGET: http://backend:8000
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "${STUDIO_PORT:-5174}:5174"
+
+volumes:
+  mongo_data:
+  minio_data:
