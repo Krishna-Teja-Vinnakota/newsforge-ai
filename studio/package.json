@@ -15,7 +15,7 @@
     "@tiptap/pm": "^3.31.3",
     "@tiptap/react": "^3.31.3",
     "@tiptap/starter-kit": "^3.31.3",
-    "lucide-react": "^0.468.0",
+    "lucide-react": "^1.42.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

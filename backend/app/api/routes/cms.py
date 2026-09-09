@@ -9,6 +9,7 @@ from app.models.article import ArticleCreateRequest, ArticleListResponse, Articl
 from app.models.user import UserRole
 from app.services.articles import add_workflow_event, article_response, get_article_or_404, unique_slug
 from app.services.content import sanitize_html
+from app.services.retrieval import index_published_article
 
 router = APIRouter(prefix="/cms/articles")
 EDITOR_ROLES = (UserRole.ADMIN, UserRole.EDITOR)
@@ -95,6 +96,8 @@ async def publish_article(article_id: str, payload: PublishRequest, current_user
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
     await add_workflow_event(article["_id"], current_user["_id"], article["status"], next_status, payload.note)
     article.update(changes)
+    if next_status == ArticleStatus.PUBLISHED:
+        await index_published_article(article)
     return await article_response(article)
 
 
@@ -132,6 +135,7 @@ async def unpublish_article(article_id: str, payload: WorkflowTransitionRequest,
     now = datetime.now(UTC)
     changes = {"status": ArticleStatus.DRAFT, "updated_at": now, "published_at": None, "scheduled_for": None}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
+    await get_database().editorial_index.delete_one({"article_id": article["_id"]})
     await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.PUBLISHED, ArticleStatus.DRAFT, payload.note)
     article.update(changes)
     return await article_response(article)

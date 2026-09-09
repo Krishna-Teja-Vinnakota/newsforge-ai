@@ -25,6 +25,17 @@ class LeadInput(BaseModel):
     published_at: datetime | None = None
 
 
+class LeadDecisionRequest(BaseModel):
+    note: str = Field(default="", max_length=500)
+
+
+class LeadInboxItem(LeadInput):
+    status: str = "pending"
+    priority_score: float | None = None
+    suggested_angle: str | None = None
+    reasoning: str | None = None
+
+
 class RankedLead(BaseModel):
     lead_id: str
     headline: str
@@ -83,3 +94,13 @@ class AgentRunResponse(BaseModel):
     prompt_version: str
     duration_ms: int
     created_at: datetime
+
+
+class AgentRunHistoryResponse(AgentRunResponse):
+    input: dict[str, Any]
+    error: str | None = None
+
+
+class AgentRunHistoryListResponse(BaseModel):
+    items: list[AgentRunHistoryResponse]
+    total: int

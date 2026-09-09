@@ -1,5 +1,8 @@
 import type { Article, Session, User } from '../../types'
 
+export type AgentRun = { id: string; agent: 'selection' | 'production' | 'telemetry'; status: 'succeeded' | 'failed'; output: Record<string, unknown>; input: Record<string, unknown>; error: string | null; model: string; prompt_version: string; duration_ms: number; created_at: string }
+export type AiLead = { id: string; headline: string; topic: string; geo: string; status: string; priority_score: number | null; suggested_angle: string | null; reasoning: string | null }
+
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 const tokenKey = 'newsforge.studio.token'
 
@@ -41,6 +44,13 @@ export const api = {
   rejectArticle: (id: string) => request<Article>(`/cms/articles/${id}/reject`, { method: 'POST', body: '{}' }),
   publishArticle: (id: string) => request<Article>(`/cms/articles/${id}/publish`, { method: 'POST', body: '{}' }),
   unpublishArticle: (id: string) => request<Article>(`/cms/articles/${id}/unpublish`, { method: 'POST', body: '{}' }),
+  agentRuns: () => request<{ items: AgentRun[]; total: number }>('/agents/runs'),
+  retryAgentRun: (id: string) => request<AgentRun>(`/agents/runs/${id}/retry`, { method: 'POST', body: '{}' }),
+  rankLeads: (leads: { id: string; headline: string; topic: string; geo: string }[]) => request<AgentRun>('/agents/selection/run', { method: 'POST', body: JSON.stringify({ leads }) }),
+  produceDraft: (body: { headline: string; topic: string; context: string }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
+  recalculateTelemetry: (article_id: string) => request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),
+  aiLeads: () => request<AiLead[]>('/agents/leads'),
+  decideLead: (id: string, decision: 'approve' | 'reject') => request<AiLead>(`/agents/leads/${id}/${decision}`, { method: 'POST', body: '{}' }),
   users: () => request<User[]>('/users'),
   createUser: (body: { email: string; password: string; display_name: string; role: string }) => request<User>('/users', { method: 'POST', body: JSON.stringify(body) }),
   updateUser: (id: string, body: Partial<User> & { password?: string }) => request<User>(`/users/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
