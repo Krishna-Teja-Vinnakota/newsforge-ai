@@ -1,0 +1,7 @@
+node_modules
+dist
+coverage
+*.lock
+backend/.venv
+backend/__pycache__
+**/__pycache__

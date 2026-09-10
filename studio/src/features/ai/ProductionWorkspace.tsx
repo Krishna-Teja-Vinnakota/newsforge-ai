@@ -17,7 +17,7 @@ function HeroImage({ article }: { article: Article }) {
   return <div className="workspace-hero"><img src={article.hero_url} alt={`Hero image for ${article.title}`} onError={() => setFailed(true)} /></div>
 }
 
-const statusLabel: Record<ArticleStatus, string> = { draft: 'Draft', under_review: 'Under review', approved: 'Approved', rejected: 'Rejected', scheduled: 'Scheduled', published: 'Published', archived: 'Archived' }
+const statusLabel: Record<ArticleStatus, string> = { draft: 'Draft', under_review: 'Under review', approved: 'Approved', rejected: 'Rejected', published: 'Published', unpublished: 'Unpublished' }
 
 export function ProductionWorkspace({ refreshKey, onNotice }: { refreshKey: number; onNotice: (notice: string) => void }) {
   const [articles, setArticles] = useState<Article[]>([])
@@ -48,7 +48,7 @@ export function ProductionWorkspace({ refreshKey, onNotice }: { refreshKey: numb
     } catch (error) { onNotice(error instanceof Error ? error.message : 'Unable to update the editorial status.') } finally { setWorking(false) }
   }
   if (!active || !form) return <section className="production-workspace"><h2>Production workspace</h2><p>No generated drafts yet. Approve a lead to create one.</p></section>
-  const canEdit = !['published', 'archived'].includes(active.status)
+  const canEdit = active.status !== 'published'
   return <section className="production-workspace">
     <header className="workspace-heading"><div><p className="eyebrow">AI DRAFT</p><h2>Production workspace</h2></div><select aria-label="Choose article" value={active.id} onChange={event => setActive(articles.find(article => article.id === event.target.value) ?? null)}>{articles.map(article => <option key={article.id} value={article.id}>{article.title}</option>)}</select></header>
     <div className="lifecycle-bar"><div><span className={`status-badge status-${active.status}`}>{statusLabel[active.status]}</span>{active.status === 'published' && <small>Published {active.published_at ? new Date(active.published_at).toLocaleString() : 'recently'}</small>}</div><div className="lifecycle-actions">{active.status === 'draft' && <><button className="button-secondary" onClick={() => void save()} disabled={working}>Save Draft</button><button className="button-primary" onClick={() => void transition('submit')} disabled={working}>Submit for Review</button></>}{active.status === 'under_review' && <><button className="button-danger" onClick={() => void transition('reject')} disabled={working}>Reject</button><button className="button-success" onClick={() => void transition('approve')} disabled={working}>Approve Draft</button></>}{active.status === 'approved' && <button className="button-publish" onClick={() => void transition('publish')} disabled={working}>Publish Article</button>}{active.status === 'published' && <span className="published-badge">✓ Published</span>}{active.status === 'rejected' && <button className="button-secondary" onClick={() => void save()} disabled={working}>Save Draft</button>}</div></div>

@@ -52,7 +52,7 @@ async def update_article(article_id: str, payload: ArticleUpdateRequest, current
     article = await get_article_or_404(article_id)
     if not can_edit(article, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot edit this article")
-    if article["status"] in {ArticleStatus.PUBLISHED, ArticleStatus.ARCHIVED}:
+    if article["status"] == ArticleStatus.PUBLISHED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Create a new revision before editing this article")
     changes = payload.model_dump(exclude_unset=True)
     if "content_html" in changes:
@@ -76,8 +76,8 @@ async def update_article(article_id: str, payload: ArticleUpdateRequest, current
 @router.post("/{article_id}/submit-review", response_model=ArticleResponse)
 async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
-    if not can_edit(article, current_user) or article["status"] != ArticleStatus.DRAFT:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a draft can move to under_review")
+    if not can_edit(article, current_user) or article["status"] not in {ArticleStatus.DRAFT, ArticleStatus.UNPUBLISHED}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a draft or unpublished story can move to under_review")
     now = datetime.now(UTC)
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": {"status": ArticleStatus.UNDER_REVIEW, "updated_at": now}})
     await add_workflow_event(article["_id"], current_user["_id"], article["status"], ArticleStatus.UNDER_REVIEW, payload.note)
@@ -134,9 +134,9 @@ async def unpublish_article(article_id: str, payload: WorkflowTransitionRequest,
     if article["status"] != ArticleStatus.PUBLISHED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a published article can be unpublished")
     now = datetime.now(UTC)
-    changes = {"status": ArticleStatus.DRAFT, "updated_at": now, "published_at": None, "scheduled_for": None}
+    changes = {"status": ArticleStatus.UNPUBLISHED, "updated_at": now, "published_at": None, "scheduled_for": None}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
     await get_database().editorial_index.delete_one({"article_id": article["_id"]})
-    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.PUBLISHED, ArticleStatus.DRAFT, payload.note)
+    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.PUBLISHED, ArticleStatus.UNPUBLISHED, payload.note)
     article.update(changes)
     return await article_response(article)

@@ -3,7 +3,7 @@ export type ApiAuthor = { id: string; display_name: string; avatar_url: string |
 export type ApiArticle = {
   id: string
   slug: string
-  status: 'draft' | 'in_review' | 'scheduled' | 'published' | 'archived'
+  status: 'draft' | 'under_review' | 'approved' | 'rejected' | 'published' | 'unpublished'
   title: string
   dek: string
   content_json: Record<string, unknown>

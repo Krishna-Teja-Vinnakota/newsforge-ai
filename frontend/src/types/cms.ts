@@ -15,7 +15,7 @@ export type AuthSession = { access_token: string; token_type: 'bearer'; user: Au
 export type CmsArticle = {
   id: string
   slug: string
-  status: 'draft' | 'in_review' | 'scheduled' | 'published' | 'archived'
+  status: 'draft' | 'under_review' | 'approved' | 'rejected' | 'published' | 'unpublished'
   title: string
   dek: string
   content_json: Record<string, unknown>

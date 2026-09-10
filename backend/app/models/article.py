@@ -12,9 +12,8 @@ class ArticleStatus(StrEnum):
     UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
-    SCHEDULED = "scheduled"
     PUBLISHED = "published"
-    ARCHIVED = "archived"
+    UNPUBLISHED = "unpublished"
 
 
 class ArticleCreateRequest(BaseModel):
