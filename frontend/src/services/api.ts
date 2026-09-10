@@ -5,7 +5,7 @@ function errorMessage(detail: unknown): string {
   if (typeof detail === 'string') return detail
   if (Array.isArray(detail)) {
     const messages = detail
-      .map(item => typeof item === 'object' && item !== null && 'msg' in item ? String(item.msg) : null)
+      .map((item) => (typeof item === 'object' && item !== null && 'msg' in item ? String(item.msg) : null))
       .filter((message): message is string => Boolean(message))
     if (messages.length) return messages.join('. ')
   }

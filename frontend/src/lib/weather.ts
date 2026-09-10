@@ -23,25 +23,27 @@ export type WeatherLocation = Coordinates & { name?: string; country?: string }
 
 const CACHE_KEY = 'newsforge.weather.current.v1'
 export const WEATHER_CACHE_MS = 60 * 60 * 1000
-const FALLBACK_COORDINATES: Coordinates = { lat: 28.6139, lon: 77.2090 }
+const FALLBACK_COORDINATES: Coordinates = { lat: 28.6139, lon: 77.209 }
 
 function readCache(location: Coordinates): CachedWeather | null {
   try {
     const cacheKey = `${CACHE_KEY}.${location.lat.toFixed(2)}.${location.lon.toFixed(2)}`
     const cached = JSON.parse(localStorage.getItem(cacheKey) ?? 'null') as CachedWeather | null
-    return cached?.data && Array.isArray(cached.forecast) && Date.now() - cached.cachedAt < WEATHER_CACHE_MS ? cached : null
+    return cached?.data && Array.isArray(cached.forecast) && Date.now() - cached.cachedAt < WEATHER_CACHE_MS
+      ? cached
+      : null
   } catch {
     return null
   }
 }
 
 function getCoordinates(): Promise<Coordinates> {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     if (!navigator.geolocation) return resolve(FALLBACK_COORDINATES)
     navigator.geolocation.getCurrentPosition(
-      position => resolve({ lat: position.coords.latitude, lon: position.coords.longitude }),
+      (position) => resolve({ lat: position.coords.latitude, lon: position.coords.longitude }),
       () => resolve(FALLBACK_COORDINATES),
-      { enableHighAccuracy: false, timeout: 8000, maximumAge: WEATHER_CACHE_MS },
+      { enableHighAccuracy: false, timeout: 8000, maximumAge: WEATHER_CACHE_MS }
     )
   })
 }
@@ -66,8 +68,11 @@ function formatWeather(payload: any): WeatherSnapshot {
   }
 }
 
-export async function getWeather(location?: WeatherLocation, force = false): Promise<{ data: WeatherSnapshot; forecast: ForecastPoint[]; cached: boolean }> {
-  const coordinates = location ?? await getCoordinates()
+export async function getWeather(
+  location?: WeatherLocation,
+  force = false
+): Promise<{ data: WeatherSnapshot; forecast: ForecastPoint[]; cached: boolean }> {
+  const coordinates = location ?? (await getCoordinates())
   if (!force) {
     const cached = readCache(coordinates)
     if (cached) return { data: cached.data, forecast: cached.forecast, cached: true }
@@ -83,12 +88,28 @@ export async function getWeather(location?: WeatherLocation, force = false): Pro
     fetch(`https://api.openweathermap.org/data/2.5/weather?${query}`),
     fetch(`https://api.openweathermap.org/data/2.5/forecast?${query}`),
   ])
-  if (!response.ok) throw new Error(response.status === 401 ? 'The weather API key is invalid or not active yet.' : 'Weather is temporarily unavailable. Please try again.')
+  if (!response.ok)
+    throw new Error(
+      response.status === 401
+        ? 'The weather API key is invalid or not active yet.'
+        : 'Weather is temporarily unavailable. Please try again.'
+    )
 
   const data = formatWeather(await response.json())
   const forecastPayload = forecastResponse.ok ? await forecastResponse.json() : { list: [] }
-  const forecast = (forecastPayload.list as any[]).filter((item, index) => item.dt_txt.includes('12:00:00') || index === 0).slice(0, 5).map(item => ({ timestamp: item.dt, temperature: Math.round(item.main.temp), condition: item.weather[0].main, icon: item.weather[0].icon }))
-  localStorage.setItem(`${CACHE_KEY}.${lat.toFixed(2)}.${lon.toFixed(2)}`, JSON.stringify({ cachedAt: Date.now(), data, forecast }))
+  const forecast = (forecastPayload.list as any[])
+    .filter((item, index) => item.dt_txt.includes('12:00:00') || index === 0)
+    .slice(0, 5)
+    .map((item) => ({
+      timestamp: item.dt,
+      temperature: Math.round(item.main.temp),
+      condition: item.weather[0].main,
+      icon: item.weather[0].icon,
+    }))
+  localStorage.setItem(
+    `${CACHE_KEY}.${lat.toFixed(2)}.${lon.toFixed(2)}`,
+    JSON.stringify({ cachedAt: Date.now(), data, forecast })
+  )
   return { data, forecast, cached: false }
 }
 

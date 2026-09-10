@@ -4,4 +4,4 @@ import './styles.css'
 import './AppShell.css'
 import './StudioFixes.css'
 
-createRoot(document.getElementById('root')!).render(<StudioApp/>)
+createRoot(document.getElementById('root')!).render(<StudioApp />)

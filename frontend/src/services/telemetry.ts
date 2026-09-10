@@ -6,11 +6,23 @@ export type TelemetryResponse = { article_id: string; viewer_action: 'like' | 'd
 
 function visitorId() {
   let id = localStorage.getItem(VISITOR_KEY)
-  if (!id) { id = crypto.randomUUID(); localStorage.setItem(VISITOR_KEY, id) }
+  if (!id) {
+    id = crypto.randomUUID()
+    localStorage.setItem(VISITOR_KEY, id)
+  }
   return id
 }
 
 export const telemetryService = {
-  view: (articleId: string) => api<TelemetryResponse>(`/articles/${articleId}/view`, { method: 'POST', headers: { 'X-NewsForge-Visitor': visitorId() } }),
-  feedback: (articleId: string, action: 'like' | 'dislike') => api<TelemetryResponse>(`/articles/${articleId}/feedback`, { method: 'POST', headers: { 'X-NewsForge-Visitor': visitorId() }, body: JSON.stringify({ action }) }),
+  view: (articleId: string) =>
+    api<TelemetryResponse>(`/articles/${articleId}/view`, {
+      method: 'POST',
+      headers: { 'X-NewsForge-Visitor': visitorId() },
+    }),
+  feedback: (articleId: string, action: 'like' | 'dislike') =>
+    api<TelemetryResponse>(`/articles/${articleId}/feedback`, {
+      method: 'POST',
+      headers: { 'X-NewsForge-Visitor': visitorId() },
+      body: JSON.stringify({ action }),
+    }),
 }

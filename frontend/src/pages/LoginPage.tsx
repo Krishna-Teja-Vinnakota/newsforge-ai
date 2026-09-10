@@ -27,5 +27,48 @@ export function LoginPage() {
     }
   }
 
-  return <section className="auth-page"><p className="eyebrow"><span /> NewsForge Studio</p><h1>Make the next story matter.</h1><p>Sign in to write, review and publish with your newsroom.</p><form onSubmit={submit} className="auth-form"><label>Email<input value={email} onChange={event => setEmail(event.target.value)} type="email" required autoComplete="email" /></label><label>Password<input value={password} onChange={event => setPassword(event.target.value)} type="password" required autoComplete="current-password" /></label>{error && <p className="form-error">{error}</p>}<button className="read-button" disabled={loading}>{loading ? 'Signing in…' : <>Sign in <ArrowUpRight size={18}/></>}</button></form><Link to="/" className="back-link">Return to NewsForge</Link></section>
+  return (
+    <section className="auth-page">
+      <p className="eyebrow">
+        <span /> NewsForge Studio
+      </p>
+      <h1>Make the next story matter.</h1>
+      <p>Sign in to write, review and publish with your newsroom.</p>
+      <form onSubmit={submit} className="auth-form">
+        <label>
+          Email
+          <input
+            value={email}
+            onChange={(event) => setEmail(event.target.value)}
+            type="email"
+            required
+            autoComplete="email"
+          />
+        </label>
+        <label>
+          Password
+          <input
+            value={password}
+            onChange={(event) => setPassword(event.target.value)}
+            type="password"
+            required
+            autoComplete="current-password"
+          />
+        </label>
+        {error && <p className="form-error">{error}</p>}
+        <button className="read-button" disabled={loading}>
+          {loading ? (
+            'Signing in…'
+          ) : (
+            <>
+              Sign in <ArrowUpRight size={18} />
+            </>
+          )}
+        </button>
+      </form>
+      <Link to="/" className="back-link">
+        Return to NewsForge
+      </Link>
+    </section>
+  )
 }

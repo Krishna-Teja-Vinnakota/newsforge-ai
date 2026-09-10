@@ -1,1 +1,10 @@
-.create-ai-draft{margin:4px 0 10px;border:1px solid var(--accent);border-radius:8px;background:#1f6bff12;color:var(--accent);padding:7px 9px;font-weight:700;font-size:12px}
+.create-ai-draft {
+  margin: 4px 0 10px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: #1f6bff12;
+  color: var(--accent);
+  padding: 7px 9px;
+  font-weight: 700;
+  font-size: 12px;
+}

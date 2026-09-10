@@ -12,14 +12,22 @@ export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props)
   const [signals, setSignals] = useState<RankingSignal[]>([])
 
   useEffect(() => {
-    void api.myArticles(1, 50).then(result => {
-      const published = result.items.filter(article => article.status === 'published')
-      setArticles(published)
-      setArticleId(published[0]?.id ?? '')
-    }).catch(error => onNotice(error.message))
+    void api
+      .myArticles(1, 50)
+      .then((result) => {
+        const published = result.items.filter((article) => article.status === 'published')
+        setArticles(published)
+        setArticleId(published[0]?.id ?? '')
+      })
+      .catch((error) => onNotice(error.message))
   }, [])
 
-  const refreshSignals = () => { void api.rankingSignals().then(setSignals).catch(error => onNotice(error.message)) }
+  const refreshSignals = () => {
+    void api
+      .rankingSignals()
+      .then(setSignals)
+      .catch((error) => onNotice(error.message))
+  }
   useEffect(refreshSignals, [])
 
   const recalculate = async () => {
@@ -50,11 +58,63 @@ export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props)
     }
   }
 
-  return <section className="telemetry-panel"><div><p className="eyebrow">AUDIENCE SIGNALS</p><h2>Editorial telemetry</h2><p>Aggregate performance only. Ranking adjustments are bounded and logged.</p>{signals.length ? <div className="signal-list">{signals.map(signal => <small key={signal.topic_geo_key}>{signal.topic_geo_key}: {signal.weight_delta >= 0 ? '+' : ''}{signal.weight_delta.toFixed(2)} weight</small>)}</div> : null}</div><div className="telemetry-controls"><select value={articleId} onChange={event => setArticleId(event.target.value)} disabled={!articles.length}><option value="">{articles.length ? 'Select a published story' : 'No published stories available'}</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title}</option>)}</select><button onClick={() => void recalculate()} disabled={!articleId || working}>{working ? 'Calculating...' : 'Recalculate'}</button><button className="simulate-visits" onClick={() => void simulate()} disabled={working}>{working ? <><span className="button-spinner"/>Simulating...</> : '⚡ Simulate 1,000 Reader Visits'}</button></div></section>
+  return (
+    <section className="telemetry-panel">
+      <div>
+        <p className="eyebrow">AUDIENCE SIGNALS</p>
+        <h2>Editorial telemetry</h2>
+        <p>Aggregate performance only. Ranking adjustments are bounded and logged.</p>
+        {signals.length ? (
+          <div className="signal-list">
+            {signals.map((signal) => (
+              <small key={signal.topic_geo_key}>
+                {signal.topic_geo_key}: {signal.weight_delta >= 0 ? '+' : ''}
+                {signal.weight_delta.toFixed(2)} weight
+              </small>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <div className="telemetry-controls">
+        <select value={articleId} onChange={(event) => setArticleId(event.target.value)} disabled={!articles.length}>
+          <option value="">{articles.length ? 'Select a published story' : 'No published stories available'}</option>
+          {articles.map((article) => (
+            <option key={article.id} value={article.id}>
+              {article.title}
+            </option>
+          ))}
+        </select>
+        <button onClick={() => void recalculate()} disabled={!articleId || working}>
+          {working ? 'Calculating...' : 'Recalculate'}
+        </button>
+        <button className="simulate-visits" onClick={() => void simulate()} disabled={working}>
+          {working ? (
+            <>
+              <span className="button-spinner" />
+              Simulating...
+            </>
+          ) : (
+            '⚡ Simulate 1,000 Reader Visits'
+          )}
+        </button>
+      </div>
+    </section>
+  )
 }
 
 export function TelemetryResult({ run }: { run: AgentRun }) {
   const result = run.output as Telemetry
   if (run.agent !== 'telemetry' || run.status !== 'succeeded') return null
-  return <div className="telemetry-result"><b>Latest signal</b><span>Engagement {Math.round((result.engagement_score ?? 0) * 100)}%</span><span>Ranking delta {(result.weight_delta ?? 0) > 0 ? '+' : ''}{result.weight_delta ?? 0}</span><p>{result.insight}</p>{result.seo_recommendations?.length ? <small>SEO: {result.seo_recommendations.join(' · ')}</small> : null}</div>
+  return (
+    <div className="telemetry-result">
+      <b>Latest signal</b>
+      <span>Engagement {Math.round((result.engagement_score ?? 0) * 100)}%</span>
+      <span>
+        Ranking delta {(result.weight_delta ?? 0) > 0 ? '+' : ''}
+        {result.weight_delta ?? 0}
+      </span>
+      <p>{result.insight}</p>
+      {result.seo_recommendations?.length ? <small>SEO: {result.seo_recommendations.join(' · ')}</small> : null}
+    </div>
+  )
 }
