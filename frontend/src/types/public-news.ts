@@ -21,3 +21,4 @@ export type ApiArticle = {
 }
 
 export type ApiArticleList = { items: ApiArticle[]; page: number; page_size: number; total: number }
+export type ApiArticleNeighbors = { previous: ApiArticle | null; next: ApiArticle | null }

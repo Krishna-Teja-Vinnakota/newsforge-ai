@@ -71,6 +71,11 @@ class ArticleListResponse(BaseModel):
     total: int
 
 
+class ArticleNeighborsResponse(BaseModel):
+    previous: ArticleResponse | None = None
+    next: ArticleResponse | None = None
+
+
 class WorkflowTransitionRequest(BaseModel):
     note: str = Field(default="", max_length=500)
 

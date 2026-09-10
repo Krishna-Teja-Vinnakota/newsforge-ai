@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client'
 import { BrowserRouter, Link, useLocation } from 'react-router-dom'
 import {
   ArrowLeft,
+  ArrowRight,
   ArrowUpRight,
   Bookmark,
   Cloud,
@@ -37,6 +38,9 @@ const news = newsRepository.getSnapshot()
 
 function ArticlePage({ onSave, saved, story }: { onSave: () => void; saved: boolean; story?: Story }) {
   const article = story ?? news.hero
+  const articleIndex = news.stories.findIndex((item) => item.id === article.id)
+  const previousStory = articleIndex > 0 ? news.stories[articleIndex - 1] : undefined
+  const nextStory = articleIndex >= 0 ? news.stories[articleIndex + 1] : news.stories[0]
   const [shareLabel, setShareLabel] = useState('Share')
   const share = async () => {
     try {
@@ -122,6 +126,20 @@ function ArticlePage({ onSave, saved, story }: { onSave: () => void; saved: bool
             ))}
           </div>
         </section>
+        <nav className="article-navigation" aria-label="Article navigation">
+          {previousStory ? (
+            <Link to={`/article?story=${previousStory.id}`}>
+              <ArrowLeft size={16} />
+              <span><small>Previous story</small>{previousStory.title}</span>
+            </Link>
+          ) : <span className="article-navigation-empty" />}
+          {nextStory ? (
+            <Link className="next" to={`/article?story=${nextStory.id}`}>
+              <span><small>Next story</small>{nextStory.title}</span>
+              <ArrowRight size={16} />
+            </Link>
+          ) : <span className="article-navigation-empty" />}
+        </nav>
       </article>
       <TrendingRail />
     </section>

@@ -1,7 +1,7 @@
 from fastapi import APIRouter, HTTPException, Query, status
 
 from app.core.database import get_database
-from app.models.article import ArticleListResponse, ArticleResponse, ArticleStatus
+from app.models.article import ArticleListResponse, ArticleNeighborsResponse, ArticleResponse, ArticleStatus
 from app.services.articles import article_response
 
 router = APIRouter(prefix="/articles")
@@ -21,6 +21,20 @@ async def trending_articles(limit: int = Query(default=5, ge=1, le=10)) -> Artic
     cursor = get_database().articles.find(criteria).sort([("metrics.popularity_score", -1), ("published_at", -1)]).limit(limit)
     items = [await article_response(item) async for item in cursor]
     return ArticleListResponse(items=items, page=1, page_size=limit, total=len(items))
+
+
+@router.get("/{slug}/neighbors", response_model=ArticleNeighborsResponse)
+async def published_article_neighbors(slug: str) -> ArticleNeighborsResponse:
+    criteria = {"status": ArticleStatus.PUBLISHED}
+    article = await get_database().articles.find_one({**criteria, "slug": slug})
+    if article is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
+    published_at = article.get("published_at")
+    if published_at is None:
+        return ArticleNeighborsResponse()
+    previous = await get_database().articles.find_one({**criteria, "published_at": {"$gt": published_at}}, sort=[("published_at", 1)])
+    next_article = await get_database().articles.find_one({**criteria, "published_at": {"$lt": published_at}}, sort=[("published_at", -1)])
+    return ArticleNeighborsResponse(previous=await article_response(previous) if previous else None, next=await article_response(next_article) if next_article else None)
 
 
 @router.get("/{slug}", response_model=ArticleResponse)

@@ -1,19 +1,24 @@
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Clock3 } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Clock3 } from 'lucide-react'
 import { Link } from 'react-router-dom'
 
 import { FeedbackButtons } from '@/components/news/FeedbackButtons'
 import { TrendingRail } from '@/components/news/TrendingRail'
 import { publicNewsService } from '@/services/public-news'
-import type { ApiArticle } from '@/types/public-news'
+import type { ApiArticle, ApiArticleNeighbors } from '@/types/public-news'
 
 export function ApiArticleReader({ slug }: { slug: string }) {
   const [article, setArticle] = useState<ApiArticle | null>(null)
+  const [neighbors, setNeighbors] = useState<ApiArticleNeighbors>({ previous: null, next: null })
   const [error, setError] = useState('')
   useEffect(() => {
     void publicNewsService
       .article(slug)
-      .then(setArticle)
+      .then((result) => {
+        setArticle(result)
+        return publicNewsService.neighbors(result.slug)
+      })
+      .then(setNeighbors)
       .catch((reason) => setError(reason instanceof Error ? reason.message : 'Story unavailable.'))
   }, [slug])
   if (error)
@@ -72,6 +77,10 @@ export function ApiArticleReader({ slug }: { slug: string }) {
         {article.hero_url && <img className="article-image" src={article.hero_url} alt="" />}
         <article className="public-story-content" dangerouslySetInnerHTML={{ __html: article.content_html }} />
         <FeedbackButtons articleId={article.id} />
+        <nav className="article-navigation" aria-label="Article navigation">
+          {neighbors.previous ? <Link to={`/article/${neighbors.previous.slug}`}><ArrowLeft size={16} /><span><small>Previous story</small>{neighbors.previous.title}</span></Link> : <span className="article-navigation-empty" />}
+          {neighbors.next ? <Link className="next" to={`/article/${neighbors.next.slug}`}><span><small>Next story</small>{neighbors.next.title}</span><ArrowRight size={16} /></Link> : <span className="article-navigation-empty" />}
+        </nav>
       </article>
       <TrendingRail />
     </section>

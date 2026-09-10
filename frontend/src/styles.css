@@ -46,7 +46,8 @@ main {
   max-width: 1440px;
   margin: auto;
   padding: 0 4vw;
-  overflow: hidden;
+  /* `overflow: hidden` prevents the article rail's sticky positioning from tracking the viewport. */
+  overflow-x: clip;
 }
 .topline {
   height: 38px;
@@ -501,14 +502,14 @@ footer a:hover {
 .article-page {
   max-width: 1000px;
   margin: auto;
-  padding: 48px 0 90px;
+  padding: 32px 0 64px;
 }
 .back-link {
   display: inline-flex;
   gap: 8px;
   align-items: center;
   font: 600 12px 'DM Sans';
-  margin-bottom: 75px;
+  margin-bottom: 38px;
   color: var(--muted);
 }
 .article-category {
@@ -516,8 +517,8 @@ footer a:hover {
   color: var(--accent);
 }
 .article-page > h1 {
-  font-size: clamp(52px, 7vw, 96px);
-  line-height: 0.98;
+  font-size: clamp(42px, 5.5vw, 76px);
+  line-height: 1.02;
   text-align: center;
   max-width: 900px;
   margin: auto;
@@ -528,7 +529,7 @@ footer a:hover {
   line-height: 1.55;
   max-width: 680px;
   text-align: center;
-  margin: 27px auto 30px;
+  margin: 18px auto 22px;
 }
 .article-info {
   display: flex;
@@ -536,7 +537,7 @@ footer a:hover {
   justify-content: center;
   gap: 10px;
   font-size: 12px;
-  margin: 0 auto 38px;
+  margin: 0 auto 28px;
 }
 .article-info small {
   display: block;
@@ -569,7 +570,7 @@ footer a:hover {
 }
 .article-image {
   width: 100%;
-  height: 580px;
+  height: 500px;
   object-fit: cover;
 }
 .article-body {
@@ -623,9 +624,44 @@ footer a:hover {
 }
 .related {
   border-top: 1px solid var(--line);
-  padding-top: 48px;
-  margin-top: 80px;
+  padding-top: 36px;
+  margin-top: 56px;
 }
+.article-navigation {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+  margin-top: 36px;
+  padding-top: 20px;
+  border-top: 1px solid var(--line);
+}
+.article-navigation a {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  color: var(--ink);
+}
+.article-navigation a.next {
+  justify-content: flex-end;
+  text-align: right;
+}
+.article-navigation span:not(.article-navigation-empty) {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+  overflow: hidden;
+  font: 600 17px/1.2 'Playfair Display', serif;
+}
+.article-navigation small {
+  color: var(--accent);
+  font: 500 10px 'DM Mono', monospace;
+  letter-spacing: .06em;
+  text-transform: uppercase;
+}
+.article-navigation svg { flex: none; color: var(--accent); }
+.article-navigation a:hover { color: var(--accent); }
+.article-navigation-empty { min-height: 1px; }
 .related > h2 {
   font-size: 40px;
 }
@@ -780,6 +816,17 @@ footer a:hover {
   font-size: 11px;
 }
 @media (max-width: 760px) {
+  .article-navigation { grid-template-columns: 1fr; }
+  .article-navigation a,
+  .article-navigation a.next {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    justify-content: start;
+    text-align: left;
+  }
+  .article-navigation a.next { grid-template-columns: minmax(0, 1fr) auto; }
+  .article-navigation a span:not(.article-navigation-empty) { white-space: nowrap; text-overflow: ellipsis; }
+  .article-navigation-empty { display: none; }
   main {
     padding: 0 20px;
   }
@@ -900,10 +947,10 @@ footer a:hover {
     padding: 29px 0 55px;
   }
   .back-link {
-    margin-bottom: 42px;
+    margin-bottom: 28px;
   }
   .article-page > h1 {
-    font-size: 53px;
+    font-size: 42px;
   }
   .article-dek {
     font-size: 16px;
@@ -1949,7 +1996,7 @@ footer a:hover {
 }
 .public-story-content {
   max-width: 650px;
-  margin: 55px auto 0;
+  margin: 38px auto 0;
   font: 18px/1.75 'DM Sans';
 }
 .public-story-content h1,
@@ -1959,15 +2006,15 @@ footer a:hover {
   line-height: 1.1;
 }
 .public-story-content h2 {
-  font-size: 36px;
-  margin: 48px 0 17px;
+  font-size: 32px;
+  margin: 38px 0 14px;
 }
 .public-story-content p {
-  margin: 0 0 25px;
+  margin: 0 0 20px;
 }
 .public-story-content blockquote {
   border-left: 2px solid var(--accent);
-  margin: 37px 0;
+  margin: 30px 0;
   padding-left: 22px;
   font: 600 27px/1.28 'Playfair Display';
 }
@@ -2448,7 +2495,7 @@ footer a:hover {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 340px;
   gap: 34px;
-  padding: 40px 0 70px;
+  padding: 28px 0 56px;
 }
 .article-layout .article-page {
   padding: 0;
