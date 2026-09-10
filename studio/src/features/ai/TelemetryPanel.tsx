@@ -1,15 +1,56 @@
 import { useEffect, useState } from 'react'
-import type { Article } from '../../types'
+import type { Article, RankingSignal } from '../../types'
 import { AgentRun, api } from '../../shared/api/client'
 
-type Props = { onRun: (run: AgentRun) => void; onNotice: (notice: string) => void }
+type Props = { onRun: (run: AgentRun) => void; onNotice: (notice: string) => void; onSimulationComplete: () => void }
 type Telemetry = { engagement_score?: number; weight_delta?: number; insight?: string; seo_recommendations?: string[] }
 
-export function TelemetryPanel({ onRun, onNotice }: Props) {
-  const [articles, setArticles] = useState<Article[]>([]), [articleId, setArticleId] = useState(''), [working, setWorking] = useState(false)
-  useEffect(() => { void api.myArticles(1, 50).then(result => { const published = result.items.filter(article => article.status === 'published'); setArticles(published); setArticleId(published[0]?.id ?? '') }).catch(error => onNotice(error.message)) }, [])
-  const recalculate = async () => { if (!articleId) return; try { setWorking(true); const run = await api.recalculateTelemetry(articleId); onRun(run); onNotice('Telemetry recalculated and the bounded ranking signal was updated.') } catch (error) { onNotice(error instanceof Error ? error.message : 'Unable to calculate telemetry.') } finally { setWorking(false) } }
-  return <section className="telemetry-panel"><div><p className="eyebrow">AUDIENCE SIGNALS</p><h2>Editorial telemetry</h2><p>Aggregate performance only. Ranking adjustments are bounded and logged.</p></div><div className="telemetry-controls"><select value={articleId} onChange={event => setArticleId(event.target.value)} disabled={!articles.length}><option value="">{articles.length ? 'Select a published story' : 'No published stories available'}</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title}</option>)}</select><button onClick={() => void recalculate()} disabled={!articleId || working}>{working ? 'Calculating…' : 'Recalculate'}</button></div></section>
+export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props) {
+  const [articles, setArticles] = useState<Article[]>([])
+  const [articleId, setArticleId] = useState('')
+  const [working, setWorking] = useState(false)
+  const [signals, setSignals] = useState<RankingSignal[]>([])
+
+  useEffect(() => {
+    void api.myArticles(1, 50).then(result => {
+      const published = result.items.filter(article => article.status === 'published')
+      setArticles(published)
+      setArticleId(published[0]?.id ?? '')
+    }).catch(error => onNotice(error.message))
+  }, [])
+
+  const refreshSignals = () => { void api.rankingSignals().then(setSignals).catch(error => onNotice(error.message)) }
+  useEffect(refreshSignals, [])
+
+  const recalculate = async () => {
+    if (!articleId) return
+    try {
+      setWorking(true)
+      const run = await api.recalculateTelemetry(articleId)
+      onRun(run)
+      onNotice('Telemetry recalculated and the bounded ranking signal was updated.')
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Unable to calculate telemetry.')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  const simulate = async () => {
+    try {
+      setWorking(true)
+      const result = await api.simulateTelemetry()
+      refreshSignals()
+      onNotice(`Success: simulated 1,000 reader visits and re-ranked ${result.affected_leads_count} leads.`)
+      onSimulationComplete()
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Unable to simulate audience engagement.')
+    } finally {
+      setWorking(false)
+    }
+  }
+
+  return <section className="telemetry-panel"><div><p className="eyebrow">AUDIENCE SIGNALS</p><h2>Editorial telemetry</h2><p>Aggregate performance only. Ranking adjustments are bounded and logged.</p>{signals.length ? <div className="signal-list">{signals.map(signal => <small key={signal.topic_geo_key}>{signal.topic_geo_key}: {signal.weight_delta >= 0 ? '+' : ''}{signal.weight_delta.toFixed(2)} weight</small>)}</div> : null}</div><div className="telemetry-controls"><select value={articleId} onChange={event => setArticleId(event.target.value)} disabled={!articles.length}><option value="">{articles.length ? 'Select a published story' : 'No published stories available'}</option>{articles.map(article => <option key={article.id} value={article.id}>{article.title}</option>)}</select><button onClick={() => void recalculate()} disabled={!articleId || working}>{working ? 'Calculating...' : 'Recalculate'}</button><button className="simulate-visits" onClick={() => void simulate()} disabled={working}>{working ? <><span className="button-spinner"/>Simulating...</> : '⚡ Simulate 1,000 Reader Visits'}</button></div></section>
 }
 
 export function TelemetryResult({ run }: { run: AgentRun }) {

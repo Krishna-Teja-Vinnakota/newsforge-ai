@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     gemini_embedding_model: str = ""
     agent_timeout_seconds: int = 45
     agent_max_weight_delta: float = 0.15
+    telemetry_retention_days: int = 30
+    agent_run_retention_days: int = 90
+    audit_retention_days: int = 365
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

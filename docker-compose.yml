@@ -59,14 +59,15 @@ services:
       S3_PUBLIC_BASE_URL: http://localhost:${MINIO_API_PORT:-9000}/newsforge-media
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://localhost:${STUDIO_PORT:-5174},http://localhost:${BACKEND_PORT:-8000}
       APP_ENV: development
+      ENVIRONMENT: ${ENVIRONMENT:-development}
       BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@newsforge.dev}
       BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-NewsForgeAdmin#2026}
       BOOTSTRAP_ADMIN_DISPLAY_NAME: ${BOOTSTRAP_ADMIN_DISPLAY_NAME:-NewsForge Administrator}
-      JWT_SECRET: ${JWT_SECRET:-newsforge-local-development-secret-change-before-production}
-      LLM_PROVIDER: ${LLM_PROVIDER:-gemini_enterprise}
-      ENABLE_MOCK_AI: ${ENABLE_MOCK_AI:-false}
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-AQ.Ab8RN6Jg5nDg-XXtM0hnzZS50ka_Wyow3h5OkwsZaSPA20TAwA}
-      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-project-bd5215ca-023d-4a9e-b63}
+      JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      ENABLE_MOCK_AI: ${ENABLE_MOCK_AI:-true}
+      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
+      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
       GEMINI_SELECTION_MODEL: ${GEMINI_SELECTION_MODEL:-gemini-2.5-flash}
       GEMINI_PRODUCTION_MODEL: ${GEMINI_PRODUCTION_MODEL:-gemini-2.5-flash}

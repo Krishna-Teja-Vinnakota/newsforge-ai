@@ -1,7 +1,10 @@
-import type { Article, Session, User } from '../../types'
+import type { Article, RankingSignal, Session, User } from '../../types'
 
 export type AgentRun = { id: string; agent: 'selection' | 'production' | 'telemetry'; status: 'succeeded' | 'failed'; output: Record<string, unknown>; input: Record<string, unknown>; error: string | null; model: string; prompt_version: string; duration_ms: number; created_at: string }
-export type AiLead = { id: string; headline: string; topic: string; geo: string; status: string; priority_score: number | null; suggested_angle: string | null; reasoning: string | null }
+export type AiLead = { id: string; headline: string; topic: string; geo: string; status: string; priority_score: number | null; suggested_angle: string | null; reasoning: string | null; base_score: number; learned_weight_delta: number; final_score: number; previous_rank: number | null; current_rank: number | null; rank_shift: number }
+export type TelemetrySimulationResponse = { status: 'success'; updated_signal: RankingSignal; affected_leads_count: number }
+export type ResetDemoDataResponse = { status: 'success'; seeded_leads: number; indexed_sources: number; message: string }
+export type WorkflowState = { thread_id: string; state: Record<string, unknown>; current_node: string | null; execution_history: { node: string; status: string; timestamp: string }[]; checkpoints: { next: string[]; metadata: Record<string, unknown> }; pending_interrupts: string[] }
 
 const baseUrl = import.meta.env.VITE_API_BASE_URL ?? 'http://localhost:8000/api/v1'
 const tokenKey = 'newsforge.studio.token'
@@ -38,17 +41,24 @@ export const api = {
   updateProfile: (body: { display_name: string; email?: string; password?: string }) => request<User>('/auth/me', { method: 'PATCH', body: JSON.stringify(body) }),
   myArticles: (page = 1, pageSize = 10) => request<{ items: Article[]; page: number; page_size: number; total: number }>(`/cms/articles/mine?page=${page}&page_size=${pageSize}`),
   createArticle: (body: Partial<Article>) => request<Article>('/cms/articles', { method: 'POST', body: JSON.stringify(body) }),
-  updateArticle: (id: string, body: Partial<Article>) => request<Article>(`/cms/articles/${id}`, { method: 'PATCH', body: JSON.stringify(body) }),
+  updateArticle: (id: string, body: Partial<Article>) => request<Article>(`/cms/articles/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   submitArticle: (id: string) => request<Article>(`/cms/articles/${id}/submit-review`, { method: 'POST', body: '{}' }),
   approveArticle: (id: string) => request<Article>(`/cms/articles/${id}/approve`, { method: 'POST', body: '{}' }),
   rejectArticle: (id: string) => request<Article>(`/cms/articles/${id}/reject`, { method: 'POST', body: '{}' }),
   publishArticle: (id: string) => request<Article>(`/cms/articles/${id}/publish`, { method: 'POST', body: '{}' }),
+  submitArticleForReview: (id: string) => request<Article>(`/cms/articles/${id}/submit-review`, { method: 'POST', body: '{}' }),
   unpublishArticle: (id: string) => request<Article>(`/cms/articles/${id}/unpublish`, { method: 'POST', body: '{}' }),
   agentRuns: () => request<{ items: AgentRun[]; total: number }>('/agents/runs'),
   retryAgentRun: (id: string) => request<AgentRun>(`/agents/runs/${id}/retry`, { method: 'POST', body: '{}' }),
   rankLeads: (leads: { id: string; headline: string; topic: string; geo: string }[]) => request<AgentRun>('/agents/selection/run', { method: 'POST', body: JSON.stringify({ leads }) }),
-  produceDraft: (body: { headline: string; topic: string; context: string }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
+  produceDraft: (body: { headline: string; topic: string; context: string; target_platforms?: string[]; source_lead_id?: string }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
   recalculateTelemetry: (article_id: string) => request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),
+  simulateTelemetry: () => request<TelemetrySimulationResponse>('/telemetry/simulate', { method: 'POST', body: JSON.stringify({ topic: 'nation-world', geo: 'Ohio', sample_size: 1000 }) }),
+  resetDemoData: () => request<ResetDemoDataResponse>('/admin/reset-demo', { method: 'POST', body: '{}' }),
+  startWorkflow: (lead: { id: string; headline: string; topic: string; geo: string }) => request<WorkflowState>('/workflow/start', { method: 'POST', body: JSON.stringify({ lead }) }),
+  resumeWorkflow: (threadId: string, body: { approval_status?: 'approved' | 'rejected'; editorial_status?: 'approved'; generated_draft?: Record<string, unknown> }) => request<WorkflowState>(`/workflow/${threadId}/resume`, { method: 'POST', body: JSON.stringify(body) }),
+  workflowState: (threadId: string) => request<WorkflowState>(`/workflow/${threadId}/state`),
+  rankingSignals: () => request<RankingSignal[]>('/telemetry/signals'),
   aiLeads: () => request<AiLead[]>('/agents/leads'),
   decideLead: (id: string, decision: 'approve' | 'reject') => request<AiLead>(`/agents/leads/${id}/${decision}`, { method: 'POST', body: '{}' }),
   users: () => request<User[]>('/users'),

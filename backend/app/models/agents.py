@@ -25,11 +25,26 @@ class LeadInput(BaseModel):
     published_at: datetime | None = None
 
 
+class LeadCandidate(LeadInput):
+    """A lead selected from the persisted editorial inbox for ranking."""
+
+
+class Lead(LeadInput):
+    """A candidate lead with its closed-loop ranking state."""
+
+    base_score: float = 0.0
+    learned_weight_delta: float = 0.0
+    final_score: float = 0.0
+    previous_rank: int | None = None
+    current_rank: int | None = None
+    rank_shift: int = 0
+
+
 class LeadDecisionRequest(BaseModel):
     note: str = Field(default="", max_length=500)
 
 
-class LeadInboxItem(LeadInput):
+class LeadInboxItem(Lead):
     status: str = "pending"
     priority_score: float | None = None
     suggested_angle: str | None = None
@@ -40,6 +55,12 @@ class RankedLead(BaseModel):
     lead_id: str
     headline: str
     priority_score: float = Field(ge=0, le=1)
+    base_score: float = 0.0
+    learned_weight_delta: float = 0.0
+    final_score: float = 0.0
+    previous_rank: int | None = None
+    current_rank: int | None = None
+    rank_shift: int = 0
     suggested_angle: str
     suggested_publish_window: str
     reasoning: str
@@ -58,6 +79,7 @@ class ProductionRunRequest(BaseModel):
     topic: str = Field(default="general", max_length=80)
     context: str = Field(default="", max_length=12000)
     target_platforms: list[str] = Field(default_factory=lambda: ["web", "social", "push"])
+    source_lead_id: str | None = None
 
 
 class ProductionResult(BaseModel):
@@ -69,6 +91,8 @@ class ProductionResult(BaseModel):
     social_posts: list[str]
     push_notification: str
     provenance: list[str] = Field(default_factory=list)
+    retrieved_source_ids: list[str] = Field(default_factory=list)
+    retrieved_source_slugs: list[str] = Field(default_factory=list)
 
 
 class TelemetryRunRequest(BaseModel):

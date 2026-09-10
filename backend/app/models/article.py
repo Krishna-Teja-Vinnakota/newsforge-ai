@@ -9,7 +9,7 @@ from app.models.user import UserRole
 
 class ArticleStatus(StrEnum):
     DRAFT = "draft"
-    IN_REVIEW = "in_review"
+    UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
     SCHEDULED = "scheduled"

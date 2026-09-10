@@ -7,3 +7,32 @@ vite.config.d.ts
 __pycache__/
 *.py[cod]
 .pytest_cache/
+
+@'
+# Secrets and local config
+.env
+.env.*
+!.env.example
+
+# Python
+backend/venv/
+.venv/
+**/__pycache__/
+*.py[cod]
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Node / frontend builds
+**/node_modules/
+**/dist/
+**/.vite/
+*.tsbuildinfo
+
+# Logs and editor/OS files
+*.log
+.vSCode/
+.idea/
+.DS_Store
+Thumbs.db
+'@ | Set-Content .gitignore

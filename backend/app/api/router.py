@@ -10,6 +10,8 @@ from app.api.routes.articles import router as articles_router
 from app.api.routes.cms import router as cms_router
 from app.api.routes.telemetry import router as telemetry_router
 from app.api.routes.agents import router as agents_router
+from app.api.routes.admin import router as admin_router
+from app.api.routes.workflow import router as workflow_router
 
 api_router = APIRouter()
 api_router.include_router(health_router, tags=["health"])
@@ -20,5 +22,7 @@ api_router.include_router(tags_router, tags=["tags"])
 api_router.include_router(media_router, tags=["media"])
 api_router.include_router(articles_router, tags=["articles"])
 api_router.include_router(cms_router, tags=["cms"])
-api_router.include_router(telemetry_router, tags=["telemetry"])
+api_router.include_router(telemetry_router)
 api_router.include_router(agents_router, tags=["agents"])
+api_router.include_router(admin_router, prefix="/admin", tags=["admin"])
+api_router.include_router(workflow_router, tags=["workflow"])
