@@ -9,12 +9,11 @@ from app.models.user import UserRole
 
 class ArticleStatus(StrEnum):
     DRAFT = "draft"
-    IN_REVIEW = "in_review"
+    UNDER_REVIEW = "under_review"
     APPROVED = "approved"
     REJECTED = "rejected"
-    SCHEDULED = "scheduled"
     PUBLISHED = "published"
-    ARCHIVED = "archived"
+    UNPUBLISHED = "unpublished"
 
 
 class ArticleCreateRequest(BaseModel):
@@ -70,6 +69,11 @@ class ArticleListResponse(BaseModel):
     page: int
     page_size: int
     total: int
+
+
+class ArticleNeighborsResponse(BaseModel):
+    previous: ArticleResponse | None = None
+    next: ArticleResponse | None = None
 
 
 class WorkflowTransitionRequest(BaseModel):

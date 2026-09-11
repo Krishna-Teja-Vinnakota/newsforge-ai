@@ -7,13 +7,239 @@ type Tag = { id: string; name: string }
 type DialogState = { type: 'topic' | 'tag' | 'delete-topic' | 'delete-tag'; item?: Topic | Tag } | null
 
 export function SettingsWorkspace() {
-  const [topics, setTopics] = useState<Topic[]>([]), [tags, setTags] = useState<Tag[]>([]), [topicName, setTopicName] = useState(''), [topicSlug, setTopicSlug] = useState(''), [tagName, setTagName] = useState(''), [notice, setNotice] = useState(''), [dialog, setDialog] = useState<DialogState>(null)
-  const load = () => { void api.topics().then(setTopics).catch(error => setNotice(error.message)); void api.tags().then(setTags).catch(error => setNotice(error.message)) }
+  const [topics, setTopics] = useState<Topic[]>([]),
+    [tags, setTags] = useState<Tag[]>([]),
+    [topicName, setTopicName] = useState(''),
+    [topicSlug, setTopicSlug] = useState(''),
+    [tagName, setTagName] = useState(''),
+    [notice, setNotice] = useState(''),
+    [dialog, setDialog] = useState<DialogState>(null)
+  const load = () => {
+    void api
+      .topics()
+      .then(setTopics)
+      .catch((error) => setNotice(error.message))
+    void api
+      .tags()
+      .then(setTags)
+      .catch((error) => setNotice(error.message))
+  }
   useEffect(load, [])
-  const addTopic = async (event: FormEvent) => { event.preventDefault(); try { await api.createTopic({ name: topicName, slug: topicSlug || topicName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }); setTopicName(''); setTopicSlug(''); setNotice('Topic created.'); load() } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to create topic.') } }
-  const addTag = async (event: FormEvent) => { event.preventDefault(); try { await api.createTag(tagName); setTagName(''); setNotice('Tag created.'); load() } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to create tag.') } }
-  const saveTopic = async (event: FormEvent) => { event.preventDefault(); const item = dialog?.item as Topic | undefined; if (!item || !topicName.trim()) return; try { await api.updateTopic(item.id, { name: topicName.trim() }); setDialog(null); setNotice('Topic updated.'); load() } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to update topic.') } }
-  const remove = async () => { const item = dialog?.item; if (!item || !dialog) return; try { if (dialog.type === 'delete-topic') await api.deleteTopic(item.id); else await api.deleteTag(item.id); setDialog(null); setNotice('Item deleted.'); load() } catch (error) { setNotice(error instanceof Error ? error.message : 'Unable to delete item.') } }
-  const beginEdit = (topic: Topic) => { setTopicName(topic.name); setTopicSlug(topic.slug); setDialog({ type: 'topic', item: topic }) }
-  return <section className="settings-workspace taxonomy-workspace"><header className="taxonomy-hero"><div><p className="eyebrow">EDITORIAL SETTINGS</p><h1>Editorial taxonomy</h1><p>Maintain a clean, shared vocabulary for every NewsForge story.</p></div><div className="taxonomy-stats"><span><b>{topics.length}</b> topics</span><span><b>{tags.length}</b> tags</span></div></header>{notice && <p className="notice taxonomy-notice">{notice}</p>}<div className="taxonomy-grid"><section className="taxonomy-panel"><header><div className="taxonomy-icon">◫</div><div><h2>Topics</h2><span>Primary story categories</span></div></header><form className="taxonomy-add" onSubmit={addTopic}><input value={topicName} onChange={event => setTopicName(event.target.value)} placeholder="Add a topic" required/><input value={topicSlug} onChange={event => setTopicSlug(event.target.value)} placeholder="URL slug (optional)"/><button className="taxonomy-add-button">Add</button></form><div className="taxonomy-list">{topics.length ? topics.map(topic => <article key={topic.id}><div className="taxonomy-token topic-token">{topic.name.slice(0, 1)}</div><div><b>{topic.name}</b><small>/{topic.slug}</small></div><div className="taxonomy-actions"><button type="button" onClick={() => beginEdit(topic)}>Edit</button><button type="button" className="danger" onClick={() => setDialog({ type: 'delete-topic', item: topic })}>Delete</button></div></article>) : <p className="taxonomy-empty">No topics yet. Add the first editorial category above.</p>}</div></section><section className="taxonomy-panel"><header><div className="taxonomy-icon tag-icon">#</div><div><h2>Tags</h2><span>Story autocomplete suggestions</span></div></header><form className="taxonomy-add tag-add" onSubmit={addTag}><input value={tagName} onChange={event => setTagName(event.target.value)} placeholder="Add a tag" required/><button className="taxonomy-add-button">Add</button></form><div className="taxonomy-list">{tags.length ? tags.map(tag => <article key={tag.id}><div className="taxonomy-token tag-token">#</div><div><b>{tag.name}</b><small>Available in story tag autocomplete</small></div><div className="taxonomy-actions"><button type="button" className="danger" onClick={() => setDialog({ type: 'delete-tag', item: tag })}>Delete</button></div></article>) : <p className="taxonomy-empty">No tags yet. Add useful newsroom keywords above.</p>}</div></section></div>{dialog?.type === 'topic' && <StudioDialog title="Edit topic" onClose={() => setDialog(null)}><DialogForm onSubmit={saveTopic}><label>Topic name<input autoFocus value={topicName} onChange={event => setTopicName(event.target.value)} required/></label><p>Its URL slug remains <b>/{(dialog.item as Topic).slug}</b> to keep existing story links stable.</p><div className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="dialog-primary" type="submit">Save topic</button></div></DialogForm></StudioDialog>}{(dialog?.type === 'delete-topic' || dialog?.type === 'delete-tag') && <StudioDialog title={`Delete ${dialog.item?.name}?`} onClose={() => setDialog(null)}><DialogForm onSubmit={event => { event.preventDefault(); void remove() }}><p>This removes the item from the controlled list. Existing stories will keep their saved value.</p><div className="dialog-actions"><button type="button" onClick={() => setDialog(null)}>Cancel</button><button className="dialog-danger" type="submit">Delete</button></div></DialogForm></StudioDialog>}</section>
+  const addTopic = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await api.createTopic({
+        name: topicName,
+        slug:
+          topicSlug ||
+          topicName
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, ''),
+      })
+      setTopicName('')
+      setTopicSlug('')
+      setNotice('Topic created.')
+      load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to create topic.')
+    }
+  }
+  const addTag = async (event: FormEvent) => {
+    event.preventDefault()
+    try {
+      await api.createTag(tagName)
+      setTagName('')
+      setNotice('Tag created.')
+      load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to create tag.')
+    }
+  }
+  const saveTopic = async (event: FormEvent) => {
+    event.preventDefault()
+    const item = dialog?.item as Topic | undefined
+    if (!item || !topicName.trim()) return
+    try {
+      await api.updateTopic(item.id, { name: topicName.trim() })
+      setDialog(null)
+      setNotice('Topic updated.')
+      load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to update topic.')
+    }
+  }
+  const remove = async () => {
+    const item = dialog?.item
+    if (!item || !dialog) return
+    try {
+      if (dialog.type === 'delete-topic') await api.deleteTopic(item.id)
+      else await api.deleteTag(item.id)
+      setDialog(null)
+      setNotice('Item deleted.')
+      load()
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to delete item.')
+    }
+  }
+  const beginEdit = (topic: Topic) => {
+    setTopicName(topic.name)
+    setTopicSlug(topic.slug)
+    setDialog({ type: 'topic', item: topic })
+  }
+  return (
+    <section className="settings-workspace taxonomy-workspace">
+      <header className="taxonomy-hero">
+        <div>
+          <p className="eyebrow">EDITORIAL SETTINGS</p>
+          <h1>Editorial taxonomy</h1>
+          <p>Maintain a clean, shared vocabulary for every NewsForge story.</p>
+        </div>
+        <div className="taxonomy-stats">
+          <span>
+            <b>{topics.length}</b> topics
+          </span>
+          <span>
+            <b>{tags.length}</b> tags
+          </span>
+        </div>
+      </header>
+      {notice && <p className="notice taxonomy-notice">{notice}</p>}
+      <div className="taxonomy-grid">
+        <section className="taxonomy-panel">
+          <header>
+            <div className="taxonomy-icon">◫</div>
+            <div>
+              <h2>Topics</h2>
+              <span>Primary story categories</span>
+            </div>
+          </header>
+          <form className="taxonomy-add" onSubmit={addTopic}>
+            <input
+              value={topicName}
+              onChange={(event) => setTopicName(event.target.value)}
+              placeholder="Add a topic"
+              required
+            />
+            <input
+              value={topicSlug}
+              onChange={(event) => setTopicSlug(event.target.value)}
+              placeholder="URL slug (optional)"
+            />
+            <button className="taxonomy-add-button">Add</button>
+          </form>
+          <div className="taxonomy-list">
+            {topics.length ? (
+              topics.map((topic) => (
+                <article key={topic.id}>
+                  <div className="taxonomy-token topic-token">{topic.name.slice(0, 1)}</div>
+                  <div>
+                    <b>{topic.name}</b>
+                    <small>/{topic.slug}</small>
+                  </div>
+                  <div className="taxonomy-actions">
+                    <button type="button" onClick={() => beginEdit(topic)}>
+                      Edit
+                    </button>
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => setDialog({ type: 'delete-topic', item: topic })}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="taxonomy-empty">No topics yet. Add the first editorial category above.</p>
+            )}
+          </div>
+        </section>
+        <section className="taxonomy-panel">
+          <header>
+            <div className="taxonomy-icon tag-icon">#</div>
+            <div>
+              <h2>Tags</h2>
+              <span>Story autocomplete suggestions</span>
+            </div>
+          </header>
+          <form className="taxonomy-add tag-add" onSubmit={addTag}>
+            <input
+              value={tagName}
+              onChange={(event) => setTagName(event.target.value)}
+              placeholder="Add a tag"
+              required
+            />
+            <button className="taxonomy-add-button">Add</button>
+          </form>
+          <div className="taxonomy-list">
+            {tags.length ? (
+              tags.map((tag) => (
+                <article key={tag.id}>
+                  <div className="taxonomy-token tag-token">#</div>
+                  <div>
+                    <b>{tag.name}</b>
+                    <small>Available in story tag autocomplete</small>
+                  </div>
+                  <div className="taxonomy-actions">
+                    <button
+                      type="button"
+                      className="danger"
+                      onClick={() => setDialog({ type: 'delete-tag', item: tag })}
+                    >
+                      Delete
+                    </button>
+                  </div>
+                </article>
+              ))
+            ) : (
+              <p className="taxonomy-empty">No tags yet. Add useful newsroom keywords above.</p>
+            )}
+          </div>
+        </section>
+      </div>
+      {dialog?.type === 'topic' && (
+        <StudioDialog title="Edit topic" onClose={() => setDialog(null)}>
+          <DialogForm onSubmit={saveTopic}>
+            <label>
+              Topic name
+              <input autoFocus value={topicName} onChange={(event) => setTopicName(event.target.value)} required />
+            </label>
+            <p>
+              Its URL slug remains <b>/{(dialog.item as Topic).slug}</b> to keep existing story links stable.
+            </p>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setDialog(null)}>
+                Cancel
+              </button>
+              <button className="dialog-primary" type="submit">
+                Save topic
+              </button>
+            </div>
+          </DialogForm>
+        </StudioDialog>
+      )}
+      {(dialog?.type === 'delete-topic' || dialog?.type === 'delete-tag') && (
+        <StudioDialog title={`Delete ${dialog.item?.name}?`} onClose={() => setDialog(null)}>
+          <DialogForm
+            onSubmit={(event) => {
+              event.preventDefault()
+              void remove()
+            }}
+          >
+            <p>This removes the item from the controlled list. Existing stories will keep their saved value.</p>
+            <div className="dialog-actions">
+              <button type="button" onClick={() => setDialog(null)}>
+                Cancel
+              </button>
+              <button className="dialog-danger" type="submit">
+                Delete
+              </button>
+            </div>
+          </DialogForm>
+        </StudioDialog>
+      )}
+    </section>
+  )
 }

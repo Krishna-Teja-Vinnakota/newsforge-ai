@@ -5,7 +5,9 @@ const SAVED_LOCATION_KEY = 'newsforge.weather.location.v1'
 export function readSavedLocation(): LocationChoice | undefined {
   try {
     const value = JSON.parse(localStorage.getItem(SAVED_LOCATION_KEY) ?? 'null')
-    return value && typeof value.name === 'string' && typeof value.lat === 'number' && typeof value.lon === 'number' ? value : undefined
+    return value && typeof value.name === 'string' && typeof value.lat === 'number' && typeof value.lon === 'number'
+      ? value
+      : undefined
   } catch {
     return undefined
   }

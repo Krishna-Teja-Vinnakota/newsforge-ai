@@ -8,6 +8,6 @@ import type { Story, TrendingStory } from '@/types/news'
 export const newsRepository = {
   getSnapshot: () => fixture,
   getStoryById: (id: string | null): Story | undefined =>
-    fixture.stories.find(story => story.id === id) as Story | undefined,
+    fixture.stories.find((story) => story.id === id) as Story | undefined,
   getTrending: (): TrendingStory[] => fixture.trending as TrendingStory[],
 }

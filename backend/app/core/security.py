@@ -8,6 +8,12 @@ from app.core.settings import settings
 
 password_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 ALGORITHM = "HS256"
+DEFAULT_JWT_SECRET = "development-only-change-me"
+
+
+def uses_development_jwt_secret(value: str | None = None) -> bool:
+    """Allow startup validation to reject the known development secret in production."""
+    return (value or settings.jwt_secret) == DEFAULT_JWT_SECRET
 
 
 def hash_password(password: str) -> str:

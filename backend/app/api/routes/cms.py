@@ -47,11 +47,12 @@ async def list_my_articles(
 
 
 @router.patch("/{article_id}", response_model=ArticleResponse)
+@router.put("/{article_id}", response_model=ArticleResponse)
 async def update_article(article_id: str, payload: ArticleUpdateRequest, current_user: dict = Depends(get_current_user)) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if not can_edit(article, current_user):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot edit this article")
-    if article["status"] in {ArticleStatus.PUBLISHED, ArticleStatus.ARCHIVED}:
+    if article["status"] == ArticleStatus.PUBLISHED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Create a new revision before editing this article")
     changes = payload.model_dump(exclude_unset=True)
     if "content_html" in changes:
@@ -73,26 +74,26 @@ async def update_article(article_id: str, payload: ArticleUpdateRequest, current
 
 
 @router.post("/{article_id}/submit-review", response_model=ArticleResponse)
-async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(get_current_user)) -> ArticleResponse:
+async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
-    if not can_edit(article, current_user) or article["status"] not in {ArticleStatus.DRAFT, ArticleStatus.REJECTED}:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only an editable draft can be submitted for review")
+    if not can_edit(article, current_user) or article["status"] not in {ArticleStatus.DRAFT, ArticleStatus.UNPUBLISHED}:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a draft or unpublished story can move to under_review")
     now = datetime.now(UTC)
-    await get_database().articles.update_one({"_id": article["_id"]}, {"$set": {"status": ArticleStatus.IN_REVIEW, "updated_at": now}})
-    await add_workflow_event(article["_id"], current_user["_id"], article["status"], ArticleStatus.IN_REVIEW, payload.note)
-    article.update({"status": ArticleStatus.IN_REVIEW, "updated_at": now})
+    await get_database().articles.update_one({"_id": article["_id"]}, {"$set": {"status": ArticleStatus.UNDER_REVIEW, "updated_at": now}})
+    await add_workflow_event(article["_id"], current_user["_id"], article["status"], ArticleStatus.UNDER_REVIEW, payload.note)
+    article.update({"status": ArticleStatus.UNDER_REVIEW, "updated_at": now})
     return await article_response(article)
 
 
 @router.post("/{article_id}/publish", response_model=ArticleResponse)
 async def publish_article(article_id: str, payload: PublishRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
-    if article["status"] not in {ArticleStatus.APPROVED, ArticleStatus.SCHEDULED}:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="This article cannot be published from its current state")
+    if article["status"] != ArticleStatus.APPROVED:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only an approved article can be published")
     now = datetime.now(UTC)
-    scheduled_for = payload.scheduled_for
-    next_status = ArticleStatus.SCHEDULED if scheduled_for and scheduled_for > now else ArticleStatus.PUBLISHED
-    changes = {"status": next_status, "editor_id": current_user["_id"], "updated_at": now, "scheduled_for": scheduled_for, "published_at": now if next_status == ArticleStatus.PUBLISHED else None}
+    # The CMS review contract deliberately permits only approved -> published.
+    next_status = ArticleStatus.PUBLISHED
+    changes = {"status": next_status, "editor_id": current_user["_id"], "updated_at": now, "scheduled_for": None, "published_at": now}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
     await add_workflow_event(article["_id"], current_user["_id"], article["status"], next_status, payload.note)
     article.update(changes)
@@ -104,12 +105,12 @@ async def publish_article(article_id: str, payload: PublishRequest, current_user
 @router.post("/{article_id}/approve", response_model=ArticleResponse)
 async def approve_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
-    if article["status"] != ArticleStatus.IN_REVIEW:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only stories in review can be approved")
+    if article["status"] != ArticleStatus.UNDER_REVIEW:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only stories under review can be approved")
     now = datetime.now(UTC)
     changes = {"status": ArticleStatus.APPROVED, "editor_id": current_user["_id"], "updated_at": now}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
-    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.IN_REVIEW, ArticleStatus.APPROVED, payload.note)
+    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.UNDER_REVIEW, ArticleStatus.APPROVED, payload.note)
     article.update(changes)
     return await article_response(article)
 
@@ -117,12 +118,12 @@ async def approve_article(article_id: str, payload: WorkflowTransitionRequest, c
 @router.post("/{article_id}/reject", response_model=ArticleResponse)
 async def reject_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
-    if article["status"] != ArticleStatus.IN_REVIEW:
+    if article["status"] != ArticleStatus.UNDER_REVIEW:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only stories in review can be rejected")
     now = datetime.now(UTC)
     changes = {"status": ArticleStatus.REJECTED, "editor_id": current_user["_id"], "updated_at": now}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
-    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.IN_REVIEW, ArticleStatus.REJECTED, payload.note)
+    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.UNDER_REVIEW, ArticleStatus.REJECTED, payload.note)
     article.update(changes)
     return await article_response(article)
 
@@ -133,9 +134,9 @@ async def unpublish_article(article_id: str, payload: WorkflowTransitionRequest,
     if article["status"] != ArticleStatus.PUBLISHED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a published article can be unpublished")
     now = datetime.now(UTC)
-    changes = {"status": ArticleStatus.DRAFT, "updated_at": now, "published_at": None, "scheduled_for": None}
+    changes = {"status": ArticleStatus.UNPUBLISHED, "updated_at": now, "published_at": None, "scheduled_for": None}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
     await get_database().editorial_index.delete_one({"article_id": article["_id"]})
-    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.PUBLISHED, ArticleStatus.DRAFT, payload.note)
+    await add_workflow_event(article["_id"], current_user["_id"], ArticleStatus.PUBLISHED, ArticleStatus.UNPUBLISHED, payload.note)
     article.update(changes)
     return await article_response(article)

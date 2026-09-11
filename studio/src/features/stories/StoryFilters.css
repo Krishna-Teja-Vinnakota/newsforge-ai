@@ -1,1 +1,20 @@
-.story-status-filters{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}.story-status-filters button{border:1px solid var(--line);border-radius:99px;background:var(--surface);color:var(--muted);padding:5px 9px;font-size:11px;text-transform:capitalize}.story-status-filters button.active{border-color:var(--accent);background:var(--accent);color:#fff}
+.story-status-filters {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+}
+.story-status-filters button {
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  background: var(--surface);
+  color: var(--muted);
+  padding: 5px 9px;
+  font-size: 11px;
+  text-transform: capitalize;
+}
+.story-status-filters button.active {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}

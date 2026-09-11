@@ -19,5 +19,5 @@ async def retrieve_editorial_context(topic: str, limit: int = 3) -> list[dict[st
     cursor = get_database().editorial_index.find({"$or": [{"topic": topic.lower()}, {"tags": topic.lower()}]}, {"slug": 1, "title": 1, "excerpt": 1}).limit(limit)
     sources = []
     async for article in cursor:
-        sources.append({"slug": article["slug"], "title": article["title"], "excerpt": article.get("excerpt", "")})
+        sources.append({"id": str(article.get("_id", article.get("article_id", ""))), "slug": article["slug"], "title": article["title"], "excerpt": article.get("excerpt", "")})
     return sources
