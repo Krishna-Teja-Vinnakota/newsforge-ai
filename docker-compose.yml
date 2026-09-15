@@ -69,10 +69,10 @@ services:
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
       GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-us-central1}
-      GEMINI_SELECTION_MODEL: ${GEMINI_SELECTION_MODEL:-gemini-2.5-flash}
-      GEMINI_PRODUCTION_MODEL: ${GEMINI_PRODUCTION_MODEL:-gemini-2.5-flash}
-      GEMINI_TELEMETRY_MODEL: ${GEMINI_TELEMETRY_MODEL:-gemini-2.5-flash}
-      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-2.5-flash}
+      GEMINI_SELECTION_MODEL: ${GEMINI_SELECTION_MODEL:-gemini-flash-lite-latest}
+      GEMINI_PRODUCTION_MODEL: ${GEMINI_PRODUCTION_MODEL:-gemini-flash-lite-latest}
+      GEMINI_TELEMETRY_MODEL: ${GEMINI_TELEMETRY_MODEL:-gemini-flash-lite-latest}
+      GEMINI_EMBEDDING_MODEL: ${GEMINI_EMBEDDING_MODEL:-gemini-embedding-001}
     depends_on:
       mongo:
         condition: service_healthy
@@ -84,6 +84,10 @@ services:
   frontend:
     build: ./frontend
     restart: unless-stopped
+    environment:
+      # Vite exposes only VITE_* values to browser code. This is a public API
+      # address, never an AI credential.
+      VITE_API_BASE_URL: ${PUBLIC_API_BASE_URL:-http://localhost:${BACKEND_PORT:-8000}/api/v1}
     depends_on:
       backend:
         condition: service_started

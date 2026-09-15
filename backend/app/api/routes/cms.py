@@ -46,6 +46,14 @@ async def list_my_articles(
     return ArticleListResponse(items=[await article_response(item) async for item in cursor], page=page, page_size=page_size, total=total)
 
 
+@router.get("/{article_id}", response_model=ArticleResponse)
+async def get_article(article_id: str, current_user: dict = Depends(get_current_user)) -> ArticleResponse:
+    article = await get_article_or_404(article_id)
+    if not can_edit(article, current_user):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot view this article")
+    return await article_response(article)
+
+
 @router.patch("/{article_id}", response_model=ArticleResponse)
 @router.put("/{article_id}", response_model=ArticleResponse)
 async def update_article(article_id: str, payload: ArticleUpdateRequest, current_user: dict = Depends(get_current_user)) -> ArticleResponse:
@@ -95,6 +103,11 @@ async def publish_article(article_id: str, payload: PublishRequest, current_user
     next_status = ArticleStatus.PUBLISHED
     changes = {"status": next_status, "editor_id": current_user["_id"], "updated_at": now, "scheduled_for": None, "published_at": now}
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
+    if article.get("source_lead_id"):
+        await get_database().lead_inbox.update_one(
+            {"lead_id": article["source_lead_id"]},
+            {"$set": {"status": "published", "updated_at": now}},
+        )
     await add_workflow_event(article["_id"], current_user["_id"], article["status"], next_status, payload.note)
     article.update(changes)
     if next_status == ArticleStatus.PUBLISHED:

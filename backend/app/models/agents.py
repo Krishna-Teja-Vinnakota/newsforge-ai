@@ -1,8 +1,8 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import Any, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 
 class AgentName(StrEnum):
@@ -80,6 +80,8 @@ class ProductionRunRequest(BaseModel):
     context: str = Field(default="", max_length=12000)
     target_platforms: list[str] = Field(default_factory=lambda: ["web", "social", "push"])
     source_lead_id: str | None = None
+    article_id: str | None = None
+    tone: Literal["formal", "conversational", "urgent"] | None = None
 
 
 class ProductionResult(BaseModel):
@@ -93,6 +95,41 @@ class ProductionResult(BaseModel):
     provenance: list[str] = Field(default_factory=list)
     retrieved_source_ids: list[str] = Field(default_factory=list)
     retrieved_source_slugs: list[str] = Field(default_factory=list)
+    hero_url: str = ""
+
+    @field_validator("content_json", mode="before")
+    @classmethod
+    def normalize_tiptap_content(cls, value: Any) -> dict[str, Any]:
+        # Gemini sometimes returns the Tiptap block list directly instead of
+        # wrapping it in the document object expected by the editor.
+        if isinstance(value, list):
+            return {"type": "doc", "content": value}
+        return value
+
+    @field_validator("reporter_brief", mode="before")
+    @classmethod
+    def normalize_reporter_brief(cls, value: Any) -> dict[str, list[str] | str]:
+        if isinstance(value, str):
+            return {"background": value, "key_questions": [], "shot_list": []}
+        return value
+
+    @field_validator("social_posts", "provenance", mode="before")
+    @classmethod
+    def normalize_string_lists(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return [str(item) for item in value.values() if item]
+        if isinstance(value, list):
+            # Gemini sometimes returns social posts as {platform, text} objects
+            # instead of plain strings; keep only the human-readable copy.
+            return [
+                str(item.get("text") or item.get("copy") or item.get("post") or item)
+                if isinstance(item, dict)
+                else str(item)
+                for item in value
+            ]
+        return value
 
 
 class TelemetryRunRequest(BaseModel):

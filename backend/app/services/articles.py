@@ -54,7 +54,7 @@ async def article_response(article: dict) -> ArticleResponse:
     return ArticleResponse(
         id=str(article["_id"]), slug=article["slug"], status=article["status"], title=article["title"], dek=article["dek"],
         content_json=article["content_json"], content_html=article["content_html"], topic=article["topic"], tags=article["tags"],
-        hero_media_id=str(article["hero_media_id"]) if article.get("hero_media_id") else None, hero_url=hero_url, creator=creator, editor=await author_response(article.get("editor_id")), created_at=article["created_at"],
+        hero_media_id=str(article["hero_media_id"]) if article.get("hero_media_id") else None, hero_url=hero_url, ai_insights=article.get("ai_insights"), creator=creator, editor=await author_response(article.get("editor_id")), created_at=article["created_at"],
         updated_at=article["updated_at"], published_at=article.get("published_at"), scheduled_for=article.get("scheduled_for"),
     )
 

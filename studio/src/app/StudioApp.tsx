@@ -30,7 +30,8 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
   const [view, setView] = useState<View>('stories'),
     [collapsed, setCollapsed] = useState(false),
     [dark, setDark] = useState(localStorage.getItem('newsforge.studio.theme') === 'dark'),
-    [userMenu, setUserMenu] = useState(false)
+    [userMenu, setUserMenu] = useState(false),
+    [openArticleId, setOpenArticleId] = useState<string | null>(null)
   useEffect(() => {
     document.documentElement.dataset.theme = dark ? 'dark' : 'light'
     localStorage.setItem('newsforge.studio.theme', dark ? 'dark' : 'light')
@@ -114,8 +115,17 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
         </div>
       </aside>
       <section className="workspace">
-        {view === 'stories' && <StoriesWorkspace user={user} />}{' '}
-        {view === 'ai' && (user.role === 'admin' || user.role === 'editor') && <AiDesk />}{' '}
+        {view === 'stories' && (
+          <StoriesWorkspace user={user} openArticleId={openArticleId} onOpenArticleHandled={() => setOpenArticleId(null)} />
+        )}{' '}
+        {view === 'ai' && (user.role === 'admin' || user.role === 'editor') && (
+          <AiDesk
+            onDraftCreated={(articleId) => {
+              setOpenArticleId(articleId)
+              setView('stories')
+            }}
+          />
+        )}{' '}
         {view === 'users' && user.role === 'admin' && <UserManagementWorkspace currentUser={user} />}{' '}
         {view === 'settings' && user.role === 'admin' && <SettingsWorkspace />}{' '}
         {view === 'profile' && <ProfileWorkspace user={user} onUpdated={onUserUpdated} />}

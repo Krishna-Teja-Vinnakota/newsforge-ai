@@ -1,63 +1,43 @@
-import { FormEvent, useEffect, useState } from 'react'
+import { useState } from 'react'
 import { api } from '../../shared/api/client'
 
 type Props = {
   onRanked: () => void
   onNotice: (notice: string) => void
-  preset?: { id: string; content: string } | null
 }
 
-export function LeadRanker({ onRanked, onNotice, preset }: Props) {
-  const [intake, setIntake] = useState('')
+export function LeadRanker({ onRanked, onNotice }: Props) {
   const [working, setWorking] = useState(false)
-  useEffect(() => {
-    if (preset) setIntake(preset.content)
-  }, [preset])
-  const rank = async (event: FormEvent) => {
-    event.preventDefault()
-    const leads = intake
-      .split('\n')
-      .map((line, index) => {
-        const [headline, topic = 'general', geo = 'global'] = line.split('|').map((value) => value.trim())
-        return { id: `manual-${Date.now()}-${index}`, headline, topic, geo }
-      })
-      .filter((lead) => lead.headline.length >= 5)
-    if (!leads.length) return onNotice('Add at least one lead. Use: headline | topic | location')
+
+  const rank = async () => {
     try {
       setWorking(true)
-      await api.rankLeads(leads)
-      setIntake('')
-      onNotice('Selection Agent ranked the intake and added it to Lead inbox.')
+      const run = await api.rankLeads([])
+      const ranked = (run.output.ranked as unknown[] | undefined)?.length ?? 0
+      onNotice(`Selection Agent ranked ${ranked} lead${ranked === 1 ? '' : 's'} in the inbox.`)
       onRanked()
     } catch (error) {
-      onNotice(error instanceof Error ? error.message : 'Unable to rank leads.')
+      onNotice(error instanceof Error ? error.message : 'Unable to run the Selection Agent.')
     } finally {
       setWorking(false)
     }
   }
+
   return (
-    <form className="lead-ranker" onSubmit={rank}>
+    <section className="lead-ranker">
       <div>
-        <p className="eyebrow">1. INTAKE & PRESETS</p>
-        <h2>Rank incoming leads</h2>
-        <p>
-          One lead per line: <code>headline | topic | location</code>
-        </p>
+        <p className="eyebrow">1. CONTENT SELECTION</p>
+        <h2>Content Selection Agent</h2>
+        <p>Re-rank the leads already available in the inbox using the latest editorial signals.</p>
       </div>
-      <textarea
-        aria-label="Lead intake"
-        value={intake}
-        onChange={(event) => setIntake(event.target.value)}
-        placeholder={
-          'City council approves a transit budget | local | Seattle\nNew battery standard announced | science | global'
-        }
-      />
       <button
+        type="button"
         className="px-3 py-1.5 rounded-lg text-sm font-medium transition-colors button-primary"
+        onClick={() => void rank()}
         disabled={working}
       >
         {working ? 'Ranking…' : 'Run Selection Agent'}
       </button>
-    </form>
+    </section>
   )
 }
