@@ -9,7 +9,7 @@ from app.agents.telemetry_agent import PROMPT_VERSION as TELEMETRY_PROMPT_VERSIO
 from app.api.dependencies import require_roles
 from app.core.settings import settings
 from app.core.features import require_ai_feature
-from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, LeadDecisionRequest, LeadInboxItem, ProductionRunRequest, SelectionRunRequest, TelemetryRunRequest
+from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TelemetryRunRequest
 from app.models.agents import AgentRunStatus
 from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulationResponse
 from app.models.article import ArticleStatus
@@ -33,7 +33,14 @@ async def simulate_telemetry_agent_alias(
 
 @router.get("/leads", response_model=list[LeadInboxItem])
 async def list_leads(_: dict = Depends(require_roles(*EDITOR_ROLES))) -> list[LeadInboxItem]:
-    cursor = get_database().lead_inbox.find({}).sort([("current_rank", 1), ("final_score", -1), ("updated_at", -1)]).limit(100)
+    published_lead_ids = [
+        article["source_lead_id"]
+        async for article in get_database().articles.find(
+            {"status": ArticleStatus.PUBLISHED, "source_lead_id": {"$exists": True, "$ne": None}},
+            {"source_lead_id": 1},
+        )
+    ]
+    cursor = get_database().lead_inbox.find({"lead_id": {"$nin": published_lead_ids}}).sort([("current_rank", 1), ("final_score", -1), ("updated_at", -1)]).limit(100)
     return [LeadInboxItem(id=item["lead_id"], headline=item["headline"], topic=item.get("topic", "general"), geo=item.get("geo", "global"), source_url=item.get("source_url"), published_at=item.get("published_at"), status=item.get("status", "pending"), priority_score=item.get("priority_score"), suggested_angle=item.get("suggested_angle"), reasoning=item.get("reasoning"), base_score=item.get("base_score", 0.0), learned_weight_delta=item.get("learned_weight_delta", 0.0), final_score=item.get("final_score", 0.0), previous_rank=item.get("previous_rank"), current_rank=item.get("current_rank"), rank_shift=item.get("rank_shift", 0)) async for item in cursor]
 
 
@@ -93,26 +100,48 @@ async def retry_agent_run(run_id: str, _: dict = Depends(require_roles(*EDITOR_R
 
 @router.post("/selection/run", response_model=AgentRunResponse)
 async def selection_run(payload: SelectionRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
-    if not payload.leads:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Provide at least one lead")
-    run = await record_run(AgentName.SELECTION, settings.gemini_selection_model or "mock", SELECTION_PROMPT_VERSION, payload.model_dump(mode="json"), lambda: run_selection(payload.leads))
+    leads = payload.leads
+    if not leads:
+        cursor = get_database().lead_inbox.find({}).sort([("current_rank", 1), ("updated_at", -1)]).limit(25)
+        leads = [
+            LeadInput(
+                id=document["lead_id"],
+                headline=document["headline"],
+                topic=document.get("topic", "general"),
+                geo=document.get("geo", "global"),
+                source_url=document.get("source_url"),
+                published_at=document.get("published_at"),
+            )
+            async for document in cursor
+        ]
+    if not leads:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No leads are available to rank")
+    selection_payload = SelectionRunRequest(leads=leads)
+    run = await record_run(AgentName.SELECTION, settings.gemini_selection_model or "mock", SELECTION_PROMPT_VERSION, selection_payload.model_dump(mode="json"), lambda: run_selection(leads))
     ranked = {item["lead_id"]: item for item in run.output.get("ranked", [])}
-    for lead in payload.leads:
+    for lead in leads:
         result = ranked.get(lead.id, {})
-        existing = await get_database().lead_inbox.find_one({"lead_id": lead.id}, {"current_rank": 1})
+        existing = await get_database().lead_inbox.find_one({"lead_id": lead.id}, {"current_rank": 1, "status": 1})
         previous_rank = result.get("previous_rank")
         current_rank = result.get("current_rank")
         rank_shift = result.get("rank_shift", 0)
         base_score = result.get("base_score", 0.0)
         learned_delta = result.get("learned_weight_delta", 0.0)
         final_score = round(base_score + learned_delta, 4)
-        await get_database().lead_inbox.update_one({"lead_id": lead.id}, {"$set": {**lead.model_dump(mode="json"), "lead_id": lead.id, "status": "pending", "priority_score": result.get("priority_score"), "suggested_angle": result.get("suggested_angle"), "reasoning": result.get("reasoning"), "base_score": base_score, "learned_weight_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift, "score_audit": {"base_score": base_score, "learned_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift}, "updated_at": datetime.now(UTC)}}, upsert=True)
+        current_status = (existing or {}).get("status", "pending")
+        await get_database().lead_inbox.update_one({"lead_id": lead.id}, {"$set": {**lead.model_dump(mode="json"), "lead_id": lead.id, "status": current_status, "priority_score": result.get("priority_score"), "suggested_angle": result.get("suggested_angle"), "reasoning": result.get("reasoning"), "base_score": base_score, "learned_weight_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift, "score_audit": {"base_score": base_score, "learned_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift}, "updated_at": datetime.now(UTC)}}, upsert=True)
     return run
 
 
 @router.post("/produce", response_model=AgentRunResponse)
 async def production_run(payload: ProductionRunRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
-    run = await record_run(AgentName.PRODUCTION, settings.gemini_production_model or "mock", PRODUCTION_PROMPT_VERSION, payload.model_dump(), lambda: run_production(payload.headline, payload.topic, payload.context, payload.target_platforms))
+    run = await record_run(
+        AgentName.PRODUCTION,
+        settings.gemini_production_model or "mock",
+        PRODUCTION_PROMPT_VERSION,
+        payload.model_dump(),
+        lambda: run_production(payload.headline, payload.topic, payload.context, payload.target_platforms, payload.tone),
+    )
     output = run.output
     now = datetime.now(UTC)
     title = str(output.get("title") or payload.headline)
@@ -121,6 +150,14 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         {"id": source_id, "slug": source_slug}
         for source_id, source_slug in zip(output.get("retrieved_source_ids", []), output.get("retrieved_source_slugs", []), strict=False)
     ]
+    ai_insights = {
+        "reporter_brief": output.get("reporter_brief", {}),
+        "social_posts": output.get("social_posts", []),
+        "push_notification": output.get("push_notification", ""),
+        "provenance": output.get("provenance", []),
+        "model_name": settings.gemini_production_model or "mock",
+        "generated_at": now,
+    }
     document = {
         "title": title,
         "slug": await unique_slug(title),
@@ -136,7 +173,8 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "creator_id": current_user["_id"],
         "editor_id": None,
         "hero_media_id": None,
-        "hero_url": "http://localhost:9000/media/placeholder-tech.jpg",
+        "hero_url": output.get("hero_url"),
+        "ai_insights": ai_insights,
         "created_at": now,
         "updated_at": now,
         "published_at": None,
@@ -146,16 +184,28 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "retrieved_sources": retrieved_sources,
         "metrics": {"views": 0, "likes": 0, "dislikes": 0, "engagement_ratio": 0, "popularity_score": 0, "seo_score": None},
     }
-    existing = await get_database().articles.find_one({"source_lead_id": payload.source_lead_id, "status": ArticleStatus.DRAFT}) if payload.source_lead_id else None
+    existing = None
+    if payload.article_id:
+        if not ObjectId.is_valid(payload.article_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        existing = await get_database().articles.find_one({"_id": ObjectId(payload.article_id)})
+        if not existing or existing["status"] == ArticleStatus.PUBLISHED:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose an editable draft story")
+        if existing["creator_id"] != current_user["_id"] and current_user["role"] not in EDITOR_ROLES:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot enhance this story")
+    elif payload.source_lead_id:
+        existing = await get_database().articles.find_one({"source_lead_id": payload.source_lead_id, "status": ArticleStatus.DRAFT})
     if existing:
         document["slug"] = await unique_slug(title, existing["_id"])
         document["created_at"] = existing["created_at"]
+        document["source_lead_id"] = existing.get("source_lead_id")
+        document["creator_id"] = existing["creator_id"]
         await get_database().articles.update_one({"_id": existing["_id"]}, {"$set": document})
         article_id = existing["_id"]
     else:
         inserted = await get_database().articles.insert_one(document)
         article_id = inserted.inserted_id
-    article = {"id": str(article_id), "title": title, "slug": document["slug"], "dek": document["dek"], "content_html": document["content_html"], "content_json": document["content_json"], "topic": document["topic"], "status": "draft", "source_lead_id": payload.source_lead_id}
+    article = {"id": str(article_id), "title": title, "slug": document["slug"], "dek": document["dek"], "content_html": document["content_html"], "content_json": document["content_json"], "topic": document["topic"], "status": "draft", "source_lead_id": document["source_lead_id"]}
     run.output["article"] = article
     await get_database().agent_runs.update_one({"_id": ObjectId(run.id)}, {"$set": {"output.article": article}})
     if payload.source_lead_id:

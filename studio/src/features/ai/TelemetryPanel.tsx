@@ -2,14 +2,15 @@ import { useEffect, useState } from 'react'
 import type { Article, RankingSignal } from '../../types'
 import { AgentRun, api } from '../../shared/api/client'
 
-type Props = { onRun: (run: AgentRun) => void; onNotice: (notice: string) => void; onSimulationComplete: () => void }
+type Props = { onNotice: (notice: string) => void; onSimulationComplete: () => void }
 type Telemetry = { engagement_score?: number; weight_delta?: number; insight?: string; seo_recommendations?: string[] }
 
-export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props) {
+export function TelemetryPanel({ onNotice, onSimulationComplete }: Props) {
   const [articles, setArticles] = useState<Article[]>([])
   const [articleId, setArticleId] = useState('')
   const [working, setWorking] = useState(false)
   const [signals, setSignals] = useState<RankingSignal[]>([])
+  const [lastRun, setLastRun] = useState<AgentRun | null>(null)
 
   useEffect(() => {
     void api
@@ -35,7 +36,8 @@ export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props)
     try {
       setWorking(true)
       const run = await api.recalculateTelemetry(articleId)
-      onRun(run)
+      setLastRun(run)
+      refreshSignals()
       onNotice('Telemetry recalculated and the bounded ranking signal was updated.')
     } catch (error) {
       onNotice(error instanceof Error ? error.message : 'Unable to calculate telemetry.')
@@ -98,6 +100,7 @@ export function TelemetryPanel({ onRun, onNotice, onSimulationComplete }: Props)
           )}
         </button>
       </div>
+      {lastRun && <TelemetryResult run={lastRun} />}
     </section>
   )
 }

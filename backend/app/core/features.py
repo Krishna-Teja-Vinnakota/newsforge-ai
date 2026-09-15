@@ -16,7 +16,15 @@ def ai_feature() -> FeatureStatus:
         return FeatureStatus(True)
     if settings.llm_provider != "gemini_enterprise":
         return FeatureStatus(False, "Set LLM_PROVIDER=gemini_enterprise and configure Gemini Enterprise, or explicitly set ENABLE_MOCK_AI=true for local fixtures.")
-    required = {"GOOGLE_CLOUD_PROJECT": settings.google_cloud_project, "GEMINI_SELECTION_MODEL": settings.gemini_selection_model, "GEMINI_PRODUCTION_MODEL": settings.gemini_production_model, "GEMINI_TELEMETRY_MODEL": settings.gemini_telemetry_model}
+    required = {
+        "GEMINI_SELECTION_MODEL": settings.gemini_selection_model,
+        "GEMINI_PRODUCTION_MODEL": settings.gemini_production_model,
+        "GEMINI_TELEMETRY_MODEL": settings.gemini_telemetry_model,
+    }
+    # A Gemini Developer API key does not need a Google Cloud project. Vertex
+    # authentication does, so require it only when no API key is supplied.
+    if not settings.gemini_api_key:
+        required["GOOGLE_CLOUD_PROJECT"] = settings.google_cloud_project
     missing = [name for name, value in required.items() if not value]
     credential_hint = "Configure GEMINI_API_KEY or Application Default Credentials."
     return FeatureStatus(not missing, f"Missing AI configuration: {', '.join(missing)}. {credential_hint}" if missing else None)

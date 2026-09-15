@@ -100,6 +100,7 @@ export const api = {
     ),
   createArticle: (body: Partial<Article>) =>
     request<Article>('/cms/articles', { method: 'POST', body: JSON.stringify(body) }),
+  getArticle: (id: string) => request<Article>(`/cms/articles/${id}`),
   updateArticle: (id: string, body: Partial<Article>) =>
     request<Article>(`/cms/articles/${id}`, { method: 'PUT', body: JSON.stringify(body) }),
   submitArticle: (id: string) => request<Article>(`/cms/articles/${id}/submit-review`, { method: 'POST', body: '{}' }),
@@ -119,6 +120,8 @@ export const api = {
     context: string
     target_platforms?: string[]
     source_lead_id?: string
+    article_id?: string
+    tone?: 'formal' | 'conversational' | 'urgent'
   }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
   recalculateTelemetry: (article_id: string) =>
     request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),

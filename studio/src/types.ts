@@ -24,6 +24,14 @@ export type Article = {
   published_at?: string | null
   hero_media_id: string | null
   hero_url: string | null
+  ai_insights?: {
+    reporter_brief?: { background?: string; key_questions?: string[]; shot_list?: string[] }
+    social_posts?: string[]
+    push_notification?: string
+    provenance?: string[]
+    model_name?: string
+    generated_at?: string
+  } | null
   editor?: { id: string; display_name: string } | null
 }
 

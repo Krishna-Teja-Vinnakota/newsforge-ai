@@ -36,6 +36,7 @@ class ArticleUpdateRequest(BaseModel):
     tags: list[str] | None = Field(default=None, max_length=10)
     hero_media_id: str | None = None
     hero_url: str | None = Field(default=None, max_length=2000)
+    ai_insights: dict[str, Any] | None = None
 
 
 class ArticleAuthor(BaseModel):
@@ -56,6 +57,7 @@ class ArticleResponse(BaseModel):
     tags: list[str]
     hero_media_id: str | None = None
     hero_url: str | None = None
+    ai_insights: dict[str, Any] | None = None
     creator: ArticleAuthor
     editor: ArticleAuthor | None = None
     created_at: datetime

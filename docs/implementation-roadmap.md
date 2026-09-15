@@ -62,7 +62,7 @@ This is the execution order for the complete NewsForge platform. Detailed shared
 - Configure Motor with MongoDB health checks and index initialization.
 - Configure a MinIO/S3 client and bucket bootstrap service.
 - Add Dockerfiles and `docker-compose.yml` for frontend, backend, MongoDB, MinIO, and bucket initialization.
-- Add fixture/seed commands and `.env.example` files for browser versus backend variables.
+- Maintain fixture/seed commands and the single root `.env.example` Compose template.
 - Add backend test framework and API test client.
 
 **Acceptance checks**

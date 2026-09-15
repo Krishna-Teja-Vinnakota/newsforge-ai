@@ -61,6 +61,7 @@ function StoryEditor({
   const [preview, setPreview] = useState(false)
   const [notice, setNotice] = useState('')
   const [working, setWorking] = useState(false)
+  const [tone, setTone] = useState<'neutral' | 'formal' | 'conversational' | 'urgent'>('neutral')
   const [article, setArticle] = useState<Article | null>(story === 'new' ? null : story)
   const status = article?.status ?? 'draft'
   const isReviewer = user.role === 'admin' || user.role === 'editor'
@@ -147,6 +148,41 @@ function StoryEditor({
       setWorking(false)
     }
   }
+  const enhanceWithAi = async () => {
+    if (!article) {
+      setNotice('Save this story first, then use AI enhancement.')
+      return
+    }
+    try {
+      setWorking(true)
+      setNotice('Content Production Agent is drafting…')
+      const run = await api.produceDraft({
+        article_id: article.id,
+        headline: form.title.trim() || `Latest ${form.topic.replace(/-/g, ' ')} update`,
+        topic: form.topic,
+        context: form.dek || `Draft a clear, verified story for the ${form.topic} desk.`,
+        target_platforms: ['web'],
+        ...(tone === 'neutral' ? {} : { tone }),
+      })
+      const output = run.output as { title?: string; dek?: string; content_html?: string; hero_url?: string }
+      setForm((current) => ({
+        ...current,
+        title: output.title || current.title,
+        dek: output.dek || current.dek,
+        content_html: output.content_html || current.content_html,
+        hero_url: output.hero_url || current.hero_url,
+      }))
+      const updated = await api.getArticle(article.id)
+      setArticle(updated)
+      setForm(toForm(updated))
+      onChanged(updated)
+      setNotice('AI draft is ready to review and edit.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to enhance this story.')
+    } finally {
+      setWorking(false)
+    }
+  }
 
   return (
     <section className="full-editor">
@@ -161,6 +197,24 @@ function StoryEditor({
           </button>
           {editable && (status === 'draft' || status === 'rejected' || status === 'unpublished') && (
             <>
+              {article && (
+                <>
+                  <select
+                    aria-label="AI writing tone"
+                    value={tone}
+                    onChange={(event) => setTone(event.target.value as typeof tone)}
+                    disabled={working}
+                  >
+                    <option value="neutral">Neutral</option>
+                    <option value="formal">Formal</option>
+                    <option value="conversational">Conversational</option>
+                    <option value="urgent">Breaking / urgent</option>
+                  </select>
+                  <button type="button" onClick={() => void enhanceWithAi()} disabled={working}>
+                    {working ? 'Enhancing…' : 'AI enhancement'}
+                  </button>
+                </>
+              )}
               <button type="button" onClick={() => void save()} disabled={working}>
                 Save draft
               </button>
@@ -324,13 +378,47 @@ function StoryEditor({
             onChange={(content_html) => setForm((current) => ({ ...current, content_html }))}
             editable={editable}
           />
+          {article?.ai_insights && (
+            <section className="ai-insights-card">
+              <p className="eyebrow">AI PRODUCTION INSIGHTS</p>
+              <div className="ai-insights-grid">
+                <div>
+                  <b>Reporter brief</b>
+                  <p>
+                    {article.ai_insights.reporter_brief?.background ||
+                      'Review the generated draft against its verified source context.'}
+                  </p>
+                  {article.ai_insights.reporter_brief?.key_questions?.length ? (
+                    <small>Verify: {article.ai_insights.reporter_brief.key_questions.join(' · ')}</small>
+                  ) : null}
+                </div>
+                <div>
+                  <b>Suggested distribution</b>
+                  <p>{article.ai_insights.push_notification || 'No push suggestion available.'}</p>
+                  {article.ai_insights.social_posts?.[0] ? <small>{article.ai_insights.social_posts[0]}</small> : null}
+                </div>
+                <div>
+                  <b>Provenance</b>
+                  <small>{article.ai_insights.provenance?.join(' · ') || 'Editor-supplied context — verify before publication.'}</small>
+                </div>
+              </div>
+            </section>
+          )}
         </main>
       )}
     </section>
   )
 }
 
-export function StoriesWorkspace({ user }: { user: User }) {
+export function StoriesWorkspace({
+  user,
+  openArticleId,
+  onOpenArticleHandled,
+}: {
+  user: User
+  openArticleId?: string | null
+  onOpenArticleHandled?: () => void
+}) {
   const [items, setItems] = useState<Article[]>([])
   const [topics, setTopics] = useState<Topic[]>([])
   const [tags, setTags] = useState<Tag[]>([])
@@ -353,6 +441,14 @@ export function StoriesWorkspace({ user }: { user: User }) {
     void api.tags().then(setTags)
   }
   useEffect(load, [page, pageSize])
+  useEffect(() => {
+    if (!openArticleId) return
+    void api
+      .getArticle(openArticleId)
+      .then(setEditor)
+      .catch((error) => setNotice(error instanceof Error ? error.message : 'Unable to open that story.'))
+      .finally(() => onOpenArticleHandled?.())
+  }, [openArticleId])
   const visible = useMemo(
     () => (filter === 'all' ? items : items.filter((item) => item.status === filter)),
     [filter, items]

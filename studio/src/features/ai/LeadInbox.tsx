@@ -1,4 +1,7 @@
+import { useEffect, useState } from 'react'
 import type { AiLead } from '../../shared/api/client'
+
+const pageSize = 6
 
 function RankShiftBadge({ lead }: { lead: AiLead }) {
   const previous = lead.previous_rank
@@ -28,6 +31,10 @@ export function LeadInbox({
   onApprove: (lead: AiLead) => void
   onInspect: (lead: AiLead) => void
 }) {
+  const [page, setPage] = useState(1)
+  const pages = Math.max(1, Math.ceil(leads.length / pageSize))
+  const visibleLeads = leads.slice((page - 1) * pageSize, page * pageSize)
+  useEffect(() => setPage((current) => Math.min(current, pages)), [pages])
   return (
     <section className="ai-leads">
       <header>
@@ -43,7 +50,7 @@ export function LeadInbox({
         </button>
       </header>
       {leads.length ? (
-        leads.map((lead) => {
+        visibleLeads.map((lead) => {
           const rankChanged =
             lead.previous_rank !== null && lead.current_rank !== null && lead.previous_rank !== lead.current_rank
           const score = lead.final_score || lead.priority_score || 0
@@ -89,6 +96,19 @@ export function LeadInbox({
         })
       ) : (
         <p className="ai-empty">Run Selection Agent with approved intake leads to populate this inbox.</p>
+      )}
+      {leads.length > pageSize && (
+        <footer className="lead-pagination">
+          <button type="button" disabled={page === 1} onClick={() => setPage((current) => current - 1)}>
+            Previous
+          </button>
+          <b>
+            Page {page} of {pages}
+          </b>
+          <button type="button" disabled={page === pages} onClick={() => setPage((current) => current + 1)}>
+            Next
+          </button>
+        </footer>
       )}
     </section>
   )

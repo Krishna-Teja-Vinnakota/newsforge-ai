@@ -29,6 +29,22 @@
 .ai-leads article:last-child {
   border: 0;
 }
+.lead-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  padding: 14px 20px;
+  border-top: 1px solid var(--line);
+}
+.lead-pagination button {
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--soft);
+  color: var(--ink);
+  padding: 6px 10px;
+}
+.lead-pagination b { font-size: 12px; }
 .ai-leads article > div {
   display: grid;
   gap: 6px;

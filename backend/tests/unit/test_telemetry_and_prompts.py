@@ -12,7 +12,9 @@ from app.services.telemetry_retention import prune_operational_history, prune_st
 
 def test_prompt_builders_and_guidance_contract_are_strict():
     assert 'scores' in build_selection_prompt([{'lead_id': 'one'}]).lower()
-    assert 'required json schema' in build_production_prompt('Headline', 'technology', 'Context', [], ['web']).lower()
+    production_prompt = build_production_prompt('Headline', 'technology', 'Context', [], ['web'], 'formal').lower()
+    assert 'required json schema' in production_prompt
+    assert 'measured institutional register' in production_prompt
     assert 'aggregate metrics' in build_telemetry_prompt({'views': 5}, 0.15).lower()
     guidance = SelectionGuidanceResponse.model_validate({'guidance': [{'lead_id': 'one', 'suggested_angle': 'Reader impact', 'editorial_guidance': 'Verify the source.'}]})
     assert guidance.guidance[0].lead_id == 'one'

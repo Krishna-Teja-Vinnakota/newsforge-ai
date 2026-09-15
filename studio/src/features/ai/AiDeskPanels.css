@@ -60,11 +60,6 @@
   border-radius: 4px;
   background: var(--soft);
 }
-.lead-ranker textarea {
-  height: 90px;
-  min-height: 90px;
-  resize: vertical;
-}
 .lead-ranker button,
 .telemetry-controls button {
   border: 0;
@@ -80,6 +75,9 @@
   opacity: 0.55;
 }
 .telemetry-panel {
+  grid-template-columns: 1fr auto;
+}
+.lead-ranker {
   grid-template-columns: 1fr auto;
 }
 .telemetry-controls {
