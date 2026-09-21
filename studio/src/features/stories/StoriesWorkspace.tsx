@@ -1,6 +1,8 @@
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { api } from '../../shared/api/client'
 import { NotionTiptapEditor } from './editor/NotionTiptapEditor'
+import { AiReviewModal, type AiInsights, type AiProposal } from './ai/AiReviewModal'
+import { ActionMenu } from '../../ActionMenu'
 import type { Article, ArticleStatus, User } from '../../types'
 import '../../StoriesWorkspace.css'
 import '../../TagPicker.css'
@@ -14,8 +16,10 @@ type Form = {
   topic: string
   tags: string[]
   content_html: string
+  content_json: Record<string, unknown>
   hero_url: string
   hero_media_id: string | null
+  ai_insights: AiInsights | null
 }
 type Transition = 'submit' | 'approve' | 'reject' | 'publish' | 'unpublish'
 
@@ -28,8 +32,10 @@ const fresh = (topic = 'general'): Form => ({
   topic,
   tags: [],
   content_html: '',
+  content_json: { type: 'doc', content: [] },
   hero_url: '',
   hero_media_id: null,
+  ai_insights: null,
 })
 const toForm = (story: Article): Form => ({
   title: story.title,
@@ -37,8 +43,10 @@ const toForm = (story: Article): Form => ({
   topic: story.topic,
   tags: story.tags,
   content_html: story.content_html,
+  content_json: story.content_json,
   hero_url: story.hero_url ?? '',
   hero_media_id: story.hero_media_id,
+  ai_insights: story.ai_insights ?? null,
 })
 
 function StoryEditor({
@@ -63,6 +71,9 @@ function StoryEditor({
   const [working, setWorking] = useState(false)
   const [tone, setTone] = useState<'neutral' | 'formal' | 'conversational' | 'urgent'>('neutral')
   const [article, setArticle] = useState<Article | null>(story === 'new' ? null : story)
+  const [aiProposal, setAiProposal] = useState<AiProposal | null>(null)
+  const [bodyNotes, setBodyNotes] = useState('')
+  const [showBodyNotes, setShowBodyNotes] = useState(false)
   const status = article?.status ?? 'draft'
   const isReviewer = user.role === 'admin' || user.role === 'editor'
   const editable = user.role !== 'audience' && status !== 'published'
@@ -72,7 +83,7 @@ function StoryEditor({
       setNotice('A headline needs at least 5 characters.')
       return null
     }
-    const body = { ...form, content_json: article?.content_json ?? { type: 'doc', content: [] } }
+    const body = form
     const saved = article ? await api.updateArticle(article.id, body) : await api.createArticle(body)
     setArticle(saved)
     onChanged(saved)
@@ -164,21 +175,71 @@ function StoryEditor({
         target_platforms: ['web'],
         ...(tone === 'neutral' ? {} : { tone }),
       })
-      const output = run.output as { title?: string; dek?: string; content_html?: string; hero_url?: string }
-      setForm((current) => ({
-        ...current,
-        title: output.title || current.title,
-        dek: output.dek || current.dek,
-        content_html: output.content_html || current.content_html,
-        hero_url: output.hero_url || current.hero_url,
-      }))
-      const updated = await api.getArticle(article.id)
-      setArticle(updated)
-      setForm(toForm(updated))
-      onChanged(updated)
-      setNotice('AI draft is ready to review and edit.')
+      const output = run.output as AiProposal
+      setAiProposal({
+        title: output.title,
+        dek: output.dek,
+        content_html: output.content_html,
+        content_json: output.content_json,
+        hero_url: output.hero_url,
+        ai_insights: output.ai_insights,
+      })
+      setNotice('AI proposal is ready to review.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to enhance this story.')
+    } finally {
+      setWorking(false)
+    }
+  }
+  const scopedAi = async (
+    action: 'headline-generate' | 'headline-grammar' | 'dek-generate' | 'dek-grammar' | 'body-rewrite' | 'body-grammar' | 'body-notes'
+  ) => {
+    if ((action.startsWith('dek') || action.startsWith('body')) && form.title.trim().length < 5) {
+      setNotice('Add a headline first so AI has the necessary story context.')
+      return
+    }
+    if (action === 'body-notes' && !bodyNotes.trim()) {
+      setShowBodyNotes(true)
+      setNotice('Add your reporting notes, then choose Notes to story again.')
+      return
+    }
+    try {
+      setWorking(true)
+      setNotice('Preparing AI proposal…')
+      const run = action.startsWith('headline')
+        ? await api.generateHeadline({ title: form.title, topic: form.topic, context: form.dek || form.content_html, mode: action.endsWith('grammar') ? 'grammar' : 'generate' })
+        : action.startsWith('dek')
+          ? await api.generateDek({ dek: form.dek, title: form.title, context: form.content_html, mode: action.endsWith('grammar') ? 'grammar' : 'generate' })
+          : await api.generateBody({
+              content_html: form.content_html,
+              title: form.title,
+              dek: form.dek,
+              notes: bodyNotes,
+              mode: action === 'body-notes' ? 'notes_to_story' : action === 'body-grammar' ? 'grammar' : 'rewrite',
+            })
+      const output = run.output as AiProposal
+      setAiProposal(action.startsWith('headline') ? { title: output.title } : action.startsWith('dek') ? { dek: output.dek } : { content_html: output.content_html, content_json: output.content_json })
+      setNotice('AI proposal is ready to review.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to prepare an AI proposal.')
+    } finally {
+      setWorking(false)
+    }
+  }
+  const suggestTags = async () => {
+    if (form.title.trim().length < 5) {
+      setNotice('Add a headline first so AI can suggest relevant tags.')
+      return
+    }
+    try {
+      setWorking(true)
+      setNotice('Finding relevant tags…')
+      const run = await api.suggestTags({ title: form.title, dek: form.dek, content_html: form.content_html, topic: form.topic, existing_tags: form.tags })
+      const output = run.output as { suggested_tags?: string[] }
+      setForm((current) => ({ ...current, ai_insights: { ...(current.ai_insights ?? {}), suggested_tags: output.suggested_tags ?? [] } }))
+      setNotice('Tag suggestions are ready to review.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to suggest tags.')
     } finally {
       setWorking(false)
     }
@@ -280,6 +341,18 @@ function StoryEditor({
             placeholder="Untitled story"
             disabled={!editable}
           />
+          {editable && (
+            <div className="field-ai-actions">
+              <ActionMenu
+                label="AI headline actions"
+                disabled={working}
+                items={[
+                  { key: 'generate', label: 'Generate', onSelect: () => void scopedAi('headline-generate') },
+                  { key: 'grammar', label: 'Fix grammar', onSelect: () => void scopedAi('headline-grammar'), disabled: !form.title.trim() },
+                ]}
+              />
+            </div>
+          )}
           <textarea
             className="editor-dek"
             aria-label="Story summary"
@@ -288,6 +361,18 @@ function StoryEditor({
             placeholder="Write a clear reader summary"
             disabled={!editable}
           />
+          {editable && (
+            <div className="field-ai-actions">
+              <ActionMenu
+                label="AI summary actions"
+                disabled={working}
+                items={[
+                  { key: 'generate', label: 'Generate', onSelect: () => void scopedAi('dek-generate') },
+                  { key: 'grammar', label: 'Fix grammar', onSelect: () => void scopedAi('dek-grammar'), disabled: !form.dek.trim() },
+                ]}
+              />
+            </div>
+          )}
           <div className="editor-properties">
             <label>
               Topic
@@ -308,7 +393,17 @@ function StoryEditor({
               </select>
             </label>
             <label>
-              Tags
+              <span className="tags-label">
+                Tags
+                {editable && (
+                  <ActionMenu
+                    label="AI tag actions"
+                    align="end"
+                    disabled={working || form.tags.length >= 10}
+                    items={[{ key: 'suggest', label: 'Suggest with AI', onSelect: () => void suggestTags() }]}
+                  />
+                )}
+              </span>
               <div className="tag-picker">
                 {form.tags.map((tag) => (
                   <span className="story-tag" key={tag}>
@@ -324,6 +419,15 @@ function StoryEditor({
                         ×
                       </button>
                     )}
+                  </span>
+                ))}
+                {(form.ai_insights?.suggested_tags ?? []).filter((tag) => !form.tags.some((item) => item.toLowerCase() === tag.toLowerCase())).map((tag) => (
+                  <span className="story-tag story-tag--suggested" key={`suggested-${tag}`}>
+                    #{tag}
+                    {editable && <>
+                      <button type="button" aria-label={`Accept ${tag}`} onClick={() => setForm((current) => ({ ...current, tags: current.tags.length < 10 ? [...current.tags, tag] : current.tags }))}>✓</button>
+                      <button type="button" aria-label={`Reject ${tag}`} onClick={() => setForm((current) => ({ ...current, ai_insights: { ...(current.ai_insights ?? {}), suggested_tags: (current.ai_insights?.suggested_tags ?? []).filter((item) => item !== tag) } }))}>×</button>
+                    </>}
                   </span>
                 ))}
                 {editable && (
@@ -378,33 +482,78 @@ function StoryEditor({
             onChange={(content_html) => setForm((current) => ({ ...current, content_html }))}
             editable={editable}
           />
-          {article?.ai_insights && (
+          {editable && (
+            <section className="body-ai-actions">
+              <div>
+                <ActionMenu
+                  label="AI story tools"
+                  disabled={working}
+                  items={[
+                    { key: 'rewrite', label: 'Rewrite', onSelect: () => void scopedAi('body-rewrite') },
+                    { key: 'grammar', label: 'Fix grammar', onSelect: () => void scopedAi('body-grammar'), disabled: !form.content_html },
+                    { key: 'notes', label: 'Notes to story', onSelect: () => setShowBodyNotes((value) => !value) },
+                  ]}
+                />
+              </div>
+              {showBodyNotes && <div className="body-notes"><textarea value={bodyNotes} onChange={(event) => setBodyNotes(event.target.value)} placeholder="Paste reporter notes, facts, and attributed quotes…" /><button type="button" className="primary" onClick={() => void scopedAi('body-notes')} disabled={working || !bodyNotes.trim()}>Create proposal</button></div>}
+            </section>
+          )}
+          {form.ai_insights && (
             <section className="ai-insights-card">
               <p className="eyebrow">AI PRODUCTION INSIGHTS</p>
               <div className="ai-insights-grid">
                 <div>
                   <b>Reporter brief</b>
                   <p>
-                    {article.ai_insights.reporter_brief?.background ||
+                    {form.ai_insights.reporter_brief?.background ||
                       'Review the generated draft against its verified source context.'}
                   </p>
-                  {article.ai_insights.reporter_brief?.key_questions?.length ? (
-                    <small>Verify: {article.ai_insights.reporter_brief.key_questions.join(' · ')}</small>
+                  {form.ai_insights.reporter_brief?.key_questions?.length ? (
+                    <small>Verify: {form.ai_insights.reporter_brief.key_questions.join(' · ')}</small>
                   ) : null}
                 </div>
                 <div>
                   <b>Suggested distribution</b>
-                  <p>{article.ai_insights.push_notification || 'No push suggestion available.'}</p>
-                  {article.ai_insights.social_posts?.[0] ? <small>{article.ai_insights.social_posts[0]}</small> : null}
+                  <p>{form.ai_insights.push_notification || 'No push suggestion available.'}</p>
+                  {form.ai_insights.social_posts?.[0] ? <small>{form.ai_insights.social_posts[0]}</small> : null}
                 </div>
                 <div>
                   <b>Provenance</b>
-                  <small>{article.ai_insights.provenance?.join(' · ') || 'Editor-supplied context — verify before publication.'}</small>
+                  <small>{form.ai_insights.provenance?.join(' · ') || 'Editor-supplied context — verify before publication.'}</small>
                 </div>
               </div>
             </section>
           )}
         </main>
+      )}
+      {aiProposal && (
+        <AiReviewModal
+          proposal={aiProposal}
+          current={{
+            title: form.title,
+            dek: form.dek,
+            content_html: form.content_html,
+            hero_url: form.hero_url,
+          }}
+          onApply={(fields, insights) => {
+            setForm((current) => {
+              const next = { ...current }
+              fields.forEach((field) => {
+                const value = aiProposal[field]
+                if (value !== undefined) next[field] = value
+                if (field === 'content_html' && aiProposal.content_json) next.content_json = aiProposal.content_json
+              })
+              if (insights) next.ai_insights = insights
+              return next
+            })
+            setAiProposal(null)
+            setNotice('Selected AI changes applied locally. Save the draft when ready.')
+          }}
+          onClose={() => {
+            setAiProposal(null)
+            setNotice('AI proposal discarded. Your draft is unchanged.')
+          }}
+        />
       )}
     </section>
   )

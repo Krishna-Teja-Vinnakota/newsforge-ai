@@ -5,10 +5,12 @@ export function StudioDialog({
   title,
   children,
   onClose,
+  className = '',
 }: {
   title: string
   children: ReactNode
   onClose: () => void
+  className?: string
 }) {
   useEffect(() => {
     const close = (event: KeyboardEvent) => {
@@ -25,7 +27,7 @@ export function StudioDialog({
         if (event.target === event.currentTarget) onClose()
       }}
     >
-      <section className="studio-dialog" role="dialog" aria-modal="true" aria-label={title}>
+      <section className={`studio-dialog ${className}`.trim()} role="dialog" aria-modal="true" aria-label={title}>
         <header>
           <div>
             <p className="eyebrow">NEWSFORGE STUDIO</p>

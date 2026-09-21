@@ -269,6 +269,19 @@
   font-size: 18px;
   resize: vertical;
 }
+.body-notes {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 7px;
+}
+.field-ai-actions {
+  margin: -5px 0 15px;
+}
+.tags-label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.body-ai-actions { display: grid; gap: 10px; margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--soft); }
+.body-notes textarea { min-height: 90px; flex: 1 1 320px; }
+.body-notes .primary { border-color: var(--accent); background: var(--accent); color: #fff; }
 .editor-properties {
   display: grid;
   grid-template-columns: 1fr 1.4fr;

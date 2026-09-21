@@ -2,7 +2,7 @@ import type { Article, RankingSignal, Session, User } from '../../types'
 
 export type AgentRun = {
   id: string
-  agent: 'selection' | 'production' | 'telemetry'
+  agent: 'selection' | 'production' | 'telemetry' | 'headline' | 'dek' | 'body' | 'tags'
   status: 'succeeded' | 'failed'
   output: Record<string, unknown>
   input: Record<string, unknown>
@@ -123,6 +123,14 @@ export const api = {
     article_id?: string
     tone?: 'formal' | 'conversational' | 'urgent'
   }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
+  generateHeadline: (body: { title: string; topic: string; context: string; mode: 'generate' | 'grammar' }) =>
+    request<AgentRun>('/agents/headline', { method: 'POST', body: JSON.stringify(body) }),
+  generateDek: (body: { dek: string; title: string; context: string; mode: 'generate' | 'grammar' }) =>
+    request<AgentRun>('/agents/dek', { method: 'POST', body: JSON.stringify(body) }),
+  generateBody: (body: { content_html: string; title: string; dek: string; notes: string; mode: 'rewrite' | 'notes_to_story' | 'grammar' }) =>
+    request<AgentRun>('/agents/body', { method: 'POST', body: JSON.stringify(body) }),
+  suggestTags: (body: { title: string; dek: string; content_html: string; topic: string; existing_tags: string[] }) =>
+    request<AgentRun>('/agents/tags', { method: 'POST', body: JSON.stringify(body) }),
   recalculateTelemetry: (article_id: string) =>
     request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),
   simulateTelemetry: () =>

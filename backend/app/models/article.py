@@ -64,6 +64,7 @@ class ArticleResponse(BaseModel):
     updated_at: datetime
     published_at: datetime | None = None
     scheduled_for: datetime | None = None
+    metrics: dict[str, Any] = Field(default_factory=dict)
 
 
 class ArticleListResponse(BaseModel):

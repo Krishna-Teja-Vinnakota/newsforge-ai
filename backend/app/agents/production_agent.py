@@ -6,7 +6,7 @@ from app.agents.prompts.production import PROMPT_VERSION, build_production_promp
 from app.agents.provider import get_provider
 from app.core.settings import settings
 from app.models.agents import ProductionResult
-from app.services.content import sanitize_html
+from app.services.content import clean_editorial_context, sanitize_html
 from app.services.agent_metrics import record_agent_metrics
 from app.services.image_search import find_topical_image_url
 from app.services.retrieval import retrieve_editorial_context
@@ -94,7 +94,8 @@ async def run_production(
 ) -> ProductionResult:
     started = perf_counter()
     sources = await retrieve_editorial_context(topic)
-    grounded_context = context or "\n".join(source["excerpt"] for source in sources)
+    editorial_context = clean_editorial_context(context, headline)
+    grounded_context = editorial_context or "\n".join(source["excerpt"] for source in sources)
     source_ids = [source["id"] for source in sources]
     source_slugs = [source["slug"] for source in sources]
     fallback = fallback_draft(headline, topic, grounded_context, sources)
