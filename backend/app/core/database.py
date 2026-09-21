@@ -35,7 +35,15 @@ async def connect_to_mongo(retries: int = 5, retry_delay_seconds: float = 2) -> 
             await database.telemetry_events.create_index("timestamp")
             await database.workflow_threads.create_index("thread_id", unique=True)
             await database.lead_inbox.create_index("lead_id", unique=True)
-            await database.ranking_signals.create_index("key", unique=True)
+            # Ranking signals are identified by their Mongo `_id` (topic|geo).
+            # Older demo databases created a unique `key` index, even though
+            # the signal documents never wrote that field. That legacy index
+            # permits only one null value and blocks every subsequent signal.
+            ranking_signal_indexes = await database.ranking_signals.index_information()
+            for index_name, index_spec in ranking_signal_indexes.items():
+                if index_name != "_id_" and index_spec.get("key") == [("key", 1)]:
+                    await database.ranking_signals.drop_index(index_name)
+                    logger.info("Removed obsolete ranking-signals index: %s", index_name)
             await database.editorial_index.create_index("article_id", unique=True)
             await database.editorial_index.create_index([("topic", 1), ("indexed_at", -1)])
             await database.topics.create_index("slug", unique=True)

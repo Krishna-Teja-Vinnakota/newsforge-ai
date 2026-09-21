@@ -4,12 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pymongo import ReturnDocument
 
 from app.agents.production_agent import PROMPT_VERSION as PRODUCTION_PROMPT_VERSION, run_production
+from app.agents.editing_agent import BODY_PROMPT_VERSION, DEK_PROMPT_VERSION, HEADLINE_PROMPT_VERSION, TAGS_PROMPT_VERSION, run_body, run_dek, run_headline, run_tags
 from app.agents.selection_agent import PROMPT_VERSION as SELECTION_PROMPT_VERSION, run_selection
 from app.agents.telemetry_agent import PROMPT_VERSION as TELEMETRY_PROMPT_VERSION, run_telemetry
 from app.api.dependencies import require_roles
 from app.core.settings import settings
 from app.core.features import require_ai_feature
-from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TelemetryRunRequest
+from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, BodyRunRequest, DekRunRequest, HeadlineRunRequest, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TagSuggestionRunRequest, TelemetryRunRequest
 from app.models.agents import AgentRunStatus
 from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulationResponse
 from app.models.article import ArticleStatus
@@ -94,6 +95,14 @@ async def retry_agent_run(run_id: str, _: dict = Depends(require_roles(*EDITOR_R
     if agent is AgentName.PRODUCTION:
         request = ProductionRunRequest.model_validate(payload)
         return await production_run(request, _)
+    if agent is AgentName.HEADLINE:
+        return await headline_run(HeadlineRunRequest.model_validate(payload), _)
+    if agent is AgentName.DEK:
+        return await dek_run(DekRunRequest.model_validate(payload), _)
+    if agent is AgentName.BODY:
+        return await body_run(BodyRunRequest.model_validate(payload), _)
+    if agent is AgentName.TAGS:
+        return await tag_suggestion_run(TagSuggestionRunRequest.model_validate(payload), _)
     request = TelemetryRunRequest.model_validate(payload)
     return await telemetry_run(request, _)
 
@@ -158,6 +167,23 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "model_name": settings.gemini_production_model or "mock",
         "generated_at": now,
     }
+
+    # Enhancing an existing story is deliberately generation-only.  The
+    # editor presents the result as a proposal and is the only client allowed
+    # to persist a human-approved change through the CMS update endpoint.
+    # Lead drafting remains an intentional creation workflow used by AI Desk.
+    if payload.article_id:
+        if not ObjectId.is_valid(payload.article_id):
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
+        existing = await get_database().articles.find_one({"_id": ObjectId(payload.article_id)})
+        if not existing or existing["status"] == ArticleStatus.PUBLISHED:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose an editable draft story")
+        if existing["creator_id"] != current_user["_id"] and current_user["role"] not in EDITOR_ROLES:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot enhance this story")
+        run.output["ai_insights"] = ai_insights
+        await get_database().agent_runs.update_one({"_id": ObjectId(run.id)}, {"$set": {"output.ai_insights": ai_insights}})
+        return run
+
     document = {
         "title": title,
         "slug": await unique_slug(title),
@@ -185,15 +211,7 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "metrics": {"views": 0, "likes": 0, "dislikes": 0, "engagement_ratio": 0, "popularity_score": 0, "seo_score": None},
     }
     existing = None
-    if payload.article_id:
-        if not ObjectId.is_valid(payload.article_id):
-            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Story not found")
-        existing = await get_database().articles.find_one({"_id": ObjectId(payload.article_id)})
-        if not existing or existing["status"] == ArticleStatus.PUBLISHED:
-            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Choose an editable draft story")
-        if existing["creator_id"] != current_user["_id"] and current_user["role"] not in EDITOR_ROLES:
-            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="You cannot enhance this story")
-    elif payload.source_lead_id:
+    if payload.source_lead_id:
         existing = await get_database().articles.find_one({"source_lead_id": payload.source_lead_id, "status": ArticleStatus.DRAFT})
     if existing:
         document["slug"] = await unique_slug(title, existing["_id"])
@@ -211,6 +229,26 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
     if payload.source_lead_id:
         await get_database().lead_inbox.update_one({"lead_id": payload.source_lead_id}, {"$set": {"status": "approved", "updated_at": now}})
     return run
+
+
+@router.post("/headline", response_model=AgentRunResponse)
+async def headline_run(payload: HeadlineRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    return await record_run(AgentName.HEADLINE, settings.gemini_production_model or "mock", HEADLINE_PROMPT_VERSION, payload.model_dump(), lambda: run_headline(payload.title, payload.topic, payload.context, payload.mode))
+
+
+@router.post("/dek", response_model=AgentRunResponse)
+async def dek_run(payload: DekRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    return await record_run(AgentName.DEK, settings.gemini_production_model or "mock", DEK_PROMPT_VERSION, payload.model_dump(), lambda: run_dek(payload.dek, payload.title, payload.context, payload.mode))
+
+
+@router.post("/body", response_model=AgentRunResponse)
+async def body_run(payload: BodyRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    return await record_run(AgentName.BODY, settings.gemini_production_model or "mock", BODY_PROMPT_VERSION, payload.model_dump(), lambda: run_body(payload.content_html, payload.title, payload.dek, payload.notes, payload.mode))
+
+
+@router.post("/tags", response_model=AgentRunResponse)
+async def tag_suggestion_run(payload: TagSuggestionRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    return await record_run(AgentName.TAGS, settings.gemini_production_model or "mock", TAGS_PROMPT_VERSION, payload.model_dump(), lambda: run_tags(payload.title, payload.dek, payload.content_html, payload.topic, payload.existing_tags))
 
 
 @router.post("/telemetry/recalculate", response_model=AgentRunResponse)

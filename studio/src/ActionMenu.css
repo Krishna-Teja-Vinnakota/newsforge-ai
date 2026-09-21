@@ -1,0 +1,65 @@
+.action-menu {
+  position: relative;
+  display: inline-flex;
+}
+.action-menu-trigger {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  background: var(--surface);
+  color: var(--ink);
+  cursor: pointer;
+}
+.action-menu-trigger:hover {
+  background: var(--soft);
+}
+.action-menu-trigger:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}
+.action-menu-trigger[aria-expanded='true'] {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.action-menu-list {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 160px;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.12);
+  z-index: 20;
+}
+.action-menu-list.align-end {
+  left: auto;
+  right: 0;
+}
+.action-menu-list button[role='menuitem'] {
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 7px 9px;
+  border-radius: 5px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  cursor: pointer;
+}
+.action-menu-list button[role='menuitem']:hover,
+.action-menu-list button[role='menuitem']:focus-visible {
+  background: var(--soft);
+  outline: none;
+}
+.action-menu-list button[role='menuitem']:disabled {
+  cursor: not-allowed;
+  opacity: 0.45;
+}

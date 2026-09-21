@@ -49,6 +49,12 @@
   background: var(--accent);
   color: #fff;
 }
+.story-tag--suggested {
+  background: #e6b54d22;
+  color: #9a6500;
+}
+.story-tag--suggested button { background: #e6b54d33; color: #8b5c00; }
+.story-tag--suggested button:hover { background: #c98700; color: #fff; }
 .editor-properties small {
   margin-top: 4px;
   color: var(--muted);

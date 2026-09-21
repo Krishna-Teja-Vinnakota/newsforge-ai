@@ -22,6 +22,46 @@ class SelectionGuidanceItem(BaseModel):
 class SelectionGuidanceResponse(BaseModel):
     guidance: list[SelectionGuidanceItem]
 
+TOPIC_PRIORITY = {
+    "nation-world": 0.08,
+    "business": 0.07,
+    "technology": 0.07,
+    "climate": 0.06,
+    "health": 0.06,
+    "science": 0.05,
+    "local": 0.05,
+    "sports": 0.04,
+    "culture": 0.03,
+}
+
+
+def baseline_editorial_score(candidate: dict[str, Any]) -> float:
+    """Score a new lead before audience learning is available.
+
+    This intentionally uses explainable editorial signals. Telemetry is applied
+    separately, so past readership can improve a ranking without replacing the
+    initial judgement about the incoming story itself.
+    """
+    headline = str(candidate["headline"]).strip()
+    context = str(candidate.get("source_context") or "").strip()
+    word_count = len(headline.split())
+    context_words = len(context.split())
+    score = 0.45 + TOPIC_PRIORITY.get(str(candidate.get("topic", "")).lower(), 0.03)
+    if 6 <= word_count <= 20:
+        score += 0.05
+    if context_words >= 20:
+        score += 0.10
+    elif context_words >= 8:
+        score += 0.06
+    if any(character.isdigit() for character in f"{headline} {context}"):
+        score += 0.03
+    if str(candidate.get("geo", "global")).casefold() != "global":
+        score += 0.03
+    if candidate.get("source_url"):
+        score += 0.02
+    return _clamp_priority_score(score)
+
+
 def _clamp_priority_score(score: float) -> float:
     return round(min(1.0, max(0.0, score)), 4)
 
@@ -33,7 +73,13 @@ def _candidate_from_document(document: dict[str, Any]) -> dict[str, Any]:
         "headline": document["headline"],
         "topic": document.get("topic", "general"),
         "geo": document.get("geo", "global"),
-        "base_score": float(document.get("base_score", document.get("priority_score", 0.65)) or 0.0),
+        "source_url": document.get("source_url"),
+        "source_context": document.get("source_context"),
+        "base_score": (
+            float(document["base_score"])
+            if document.get("base_score") is not None
+            else (float(document["priority_score"]) if document.get("priority_score") is not None else None)
+        ),
         "previous_rank": document.get("current_rank", document.get("previous_rank")),
         "updated_at": document.get("updated_at", datetime.min.replace(tzinfo=UTC)),
     }
@@ -97,6 +143,8 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
     candidates = await _load_candidates(leads)
     signal_deltas = await _load_signal_deltas()
     for candidate in candidates:
+        if candidate["base_score"] is None:
+            candidate["base_score"] = baseline_editorial_score(candidate)
         candidate["learned_weight_delta"] = signal_deltas.get(f"{candidate['topic']}|{candidate['geo']}", 0.0)
         candidate["final_score"] = round(candidate["base_score"] + candidate["learned_weight_delta"], 4)
 
