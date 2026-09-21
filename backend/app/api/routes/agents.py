@@ -4,13 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from pymongo import ReturnDocument
 
 from app.agents.production_agent import PROMPT_VERSION as PRODUCTION_PROMPT_VERSION, run_production
-from app.agents.editing_agent import BODY_PROMPT_VERSION, DEK_PROMPT_VERSION, HEADLINE_PROMPT_VERSION, TAGS_PROMPT_VERSION, run_body, run_dek, run_headline, run_tags
+from app.agents.editing_agent import BODY_PROMPT_VERSION, CHAT_PROMPT_VERSION, DEK_PROMPT_VERSION, HEADLINE_PROMPT_VERSION, TAGS_PROMPT_VERSION, run_body, run_chat, run_dek, run_headline, run_tags
 from app.agents.selection_agent import PROMPT_VERSION as SELECTION_PROMPT_VERSION, run_selection
 from app.agents.telemetry_agent import PROMPT_VERSION as TELEMETRY_PROMPT_VERSION, run_telemetry
 from app.api.dependencies import require_roles
 from app.core.settings import settings
 from app.core.features import require_ai_feature
-from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, BodyRunRequest, DekRunRequest, HeadlineRunRequest, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TagSuggestionRunRequest, TelemetryRunRequest
+from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, BodyRunRequest, ChatRunRequest, DekRunRequest, HeadlineRunRequest, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TagSuggestionRunRequest, TelemetryRunRequest
 from app.models.agents import AgentRunStatus
 from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulationResponse
 from app.models.article import ArticleStatus
@@ -103,6 +103,8 @@ async def retry_agent_run(run_id: str, _: dict = Depends(require_roles(*EDITOR_R
         return await body_run(BodyRunRequest.model_validate(payload), _)
     if agent is AgentName.TAGS:
         return await tag_suggestion_run(TagSuggestionRunRequest.model_validate(payload), _)
+    if agent is AgentName.CHAT:
+        return await chat_run(ChatRunRequest.model_validate(payload), _)
     request = TelemetryRunRequest.model_validate(payload)
     return await telemetry_run(request, _)
 
@@ -244,6 +246,11 @@ async def dek_run(payload: DekRunRequest, _: dict = Depends(require_roles(*EDITO
 @router.post("/body", response_model=AgentRunResponse)
 async def body_run(payload: BodyRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
     return await record_run(AgentName.BODY, settings.gemini_production_model or "mock", BODY_PROMPT_VERSION, payload.model_dump(), lambda: run_body(payload.content_html, payload.title, payload.dek, payload.notes, payload.mode))
+
+
+@router.post("/chat", response_model=AgentRunResponse)
+async def chat_run(payload: ChatRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    return await record_run(AgentName.CHAT, settings.gemini_production_model or "mock", CHAT_PROMPT_VERSION, payload.model_dump(), lambda: run_chat(payload.title, payload.dek, payload.content_html, payload.history, payload.message))
 
 
 @router.post("/tags", response_model=AgentRunResponse)

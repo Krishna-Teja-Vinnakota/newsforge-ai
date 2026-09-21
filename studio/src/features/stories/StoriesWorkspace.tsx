@@ -1,7 +1,9 @@
 import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
-import { api } from '../../shared/api/client'
+import { api, type ChatMessage } from '../../shared/api/client'
 import { NotionTiptapEditor } from './editor/NotionTiptapEditor'
 import { AiReviewModal, type AiInsights, type AiProposal } from './ai/AiReviewModal'
+import { StoryChatLauncher } from './ai/StoryChatLauncher'
+import { StoryChatPanel, type StoryChatMessage } from './ai/StoryChatPanel'
 import { ActionMenu } from '../../ActionMenu'
 import type { Article, ArticleStatus, User } from '../../types'
 import '../../StoriesWorkspace.css'
@@ -74,9 +76,17 @@ function StoryEditor({
   const [aiProposal, setAiProposal] = useState<AiProposal | null>(null)
   const [bodyNotes, setBodyNotes] = useState('')
   const [showBodyNotes, setShowBodyNotes] = useState(false)
+  const [chatMessages, setChatMessages] = useState<StoryChatMessage[]>([])
+  const [showChat, setShowChat] = useState(false)
+  const [chatSending, setChatSending] = useState(false)
+  const [chatError, setChatError] = useState('')
   const status = article?.status ?? 'draft'
   const isReviewer = user.role === 'admin' || user.role === 'editor'
   const editable = user.role !== 'audience' && status !== 'published'
+
+  useEffect(() => {
+    if (!editable) setShowChat(false)
+  }, [editable])
 
   const persist = async () => {
     if (form.title.trim().length < 5) {
@@ -242,6 +252,46 @@ function StoryEditor({
       setNotice(error instanceof Error ? error.message : 'Unable to suggest tags.')
     } finally {
       setWorking(false)
+    }
+  }
+  const sendChatMessage = async (text: string): Promise<boolean> => {
+    const message = text.trim()
+    if (!message || chatSending) return false
+    const baseHtml = form.content_html
+    const history: ChatMessage[] = chatMessages.map(({ role, content }) => ({ role, content }))
+    const pending: StoryChatMessage = { role: 'user', content: message }
+    setChatMessages((current) => [...current, pending])
+    setChatError('')
+    try {
+      setChatSending(true)
+      const run = await api.chatAboutStory({
+        title: form.title,
+        dek: form.dek,
+        content_html: baseHtml,
+        history,
+        message,
+      })
+      const output = run.output as { reply?: string; title?: string | null; dek?: string | null; content_html?: string | null }
+      const proposal = {
+        ...(typeof output.title === 'string' ? { title: output.title } : {}),
+        ...(typeof output.dek === 'string' ? { dek: output.dek } : {}),
+        ...(typeof output.content_html === 'string' ? { content_html: output.content_html } : {}),
+      }
+      setChatMessages((current) => [
+        ...current,
+        {
+          role: 'assistant',
+          content: output.reply || "I couldn't process that — try rephrasing your request.",
+          ...(Object.keys(proposal).length ? { proposal, baseHtml } : {}),
+        },
+      ])
+      return true
+    } catch (error) {
+      setChatMessages((current) => current.filter((item) => item !== pending))
+      setChatError(error instanceof Error ? error.message : 'Unable to send your chat message.')
+      return false
+    } finally {
+      setChatSending(false)
     }
   }
 
@@ -553,6 +603,23 @@ function StoryEditor({
             setAiProposal(null)
             setNotice('AI proposal discarded. Your draft is unchanged.')
           }}
+        />
+      )}
+      {article && editable && (
+        <StoryChatLauncher open={showChat} onToggle={() => setShowChat((value) => !value)} />
+      )}
+      {showChat && article && editable && (
+        <StoryChatPanel
+          messages={chatMessages}
+          sending={chatSending}
+          error={chatError}
+          currentHtml={form.content_html}
+          onSend={sendChatMessage}
+          onApply={(proposal) => {
+            setAiProposal(proposal)
+            setShowChat(false)
+          }}
+          onClose={() => setShowChat(false)}
         />
       )}
     </section>
