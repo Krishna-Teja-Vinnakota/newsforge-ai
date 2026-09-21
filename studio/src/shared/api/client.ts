@@ -2,7 +2,7 @@ import type { Article, RankingSignal, Session, User } from '../../types'
 
 export type AgentRun = {
   id: string
-  agent: 'selection' | 'production' | 'telemetry' | 'headline' | 'dek' | 'body' | 'tags'
+  agent: 'selection' | 'production' | 'telemetry' | 'headline' | 'dek' | 'body' | 'tags' | 'chat'
   status: 'succeeded' | 'failed'
   output: Record<string, unknown>
   input: Record<string, unknown>
@@ -12,6 +12,7 @@ export type AgentRun = {
   duration_ms: number
   created_at: string
 }
+export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export type AiLead = {
   id: string
   headline: string
@@ -129,6 +130,8 @@ export const api = {
     request<AgentRun>('/agents/dek', { method: 'POST', body: JSON.stringify(body) }),
   generateBody: (body: { content_html: string; title: string; dek: string; notes: string; mode: 'rewrite' | 'notes_to_story' | 'grammar' }) =>
     request<AgentRun>('/agents/body', { method: 'POST', body: JSON.stringify(body) }),
+  chatAboutStory: (body: { title: string; dek: string; content_html: string; history: ChatMessage[]; message: string }) =>
+    request<AgentRun>('/agents/chat', { method: 'POST', body: JSON.stringify(body) }),
   suggestTags: (body: { title: string; dek: string; content_html: string; topic: string; existing_tags: string[] }) =>
     request<AgentRun>('/agents/tags', { method: 'POST', body: JSON.stringify(body) }),
   recalculateTelemetry: (article_id: string) =>

@@ -13,6 +13,7 @@ class AgentName(StrEnum):
     DEK = "dek"
     BODY = "body"
     TAGS = "tags"
+    CHAT = "chat"
 
 
 class AgentRunStatus(StrEnum):
@@ -202,6 +203,26 @@ class BodyResult(BaseModel):
         if isinstance(value, list):
             return {"type": "doc", "content": value}
         return value
+
+
+class ChatMessage(BaseModel):
+    role: Literal["user", "assistant"]
+    content: str = Field(max_length=4000)
+
+
+class ChatRunRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=180)
+    dek: str = Field(default="", max_length=400)
+    content_html: str = Field(default="", max_length=50000)
+    history: list[ChatMessage] = Field(default_factory=list, max_length=8)
+    message: str = Field(min_length=1, max_length=4000)
+
+
+class ChatResult(BaseModel):
+    reply: str
+    title: str | None = None
+    dek: str | None = None
+    content_html: str | None = None
 
 
 class TagSuggestionRunRequest(BaseModel):
