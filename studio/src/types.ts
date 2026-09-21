@@ -31,6 +31,7 @@ export type Article = {
     provenance?: string[]
     model_name?: string
     generated_at?: string
+    suggested_tags?: string[]
   } | null
   editor?: { id: string; display_name: string } | null
 }

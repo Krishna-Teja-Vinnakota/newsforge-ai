@@ -9,6 +9,10 @@ class AgentName(StrEnum):
     SELECTION = "selection"
     PRODUCTION = "production"
     TELEMETRY = "telemetry"
+    HEADLINE = "headline"
+    DEK = "dek"
+    BODY = "body"
+    TAGS = "tags"
 
 
 class AgentRunStatus(StrEnum):
@@ -22,6 +26,7 @@ class LeadInput(BaseModel):
     topic: str = "general"
     geo: str = "global"
     source_url: str | None = None
+    source_context: str | None = None
     published_at: datetime | None = None
 
 
@@ -113,7 +118,7 @@ class ProductionResult(BaseModel):
             return {"background": value, "key_questions": [], "shot_list": []}
         return value
 
-    @field_validator("social_posts", "provenance", mode="before")
+    @field_validator("social_posts", mode="before")
     @classmethod
     def normalize_string_lists(cls, value: Any) -> list[str]:
         if isinstance(value, str):
@@ -130,6 +135,85 @@ class ProductionResult(BaseModel):
                 for item in value
             ]
         return value
+
+    @field_validator("provenance", mode="before")
+    @classmethod
+    def normalize_provenance(cls, value: Any) -> list[str]:
+        def expand(entry: Any) -> list[str]:
+            if isinstance(entry, dict) and ("claims" in entry or "note" in entry):
+                # Gemini sometimes returns a single {confidence, claims, note}
+                # object instead of plain strings; surface the readable parts
+                # (the claims needing verification and the note) and drop the
+                # bare confidence score.
+                items = [str(claim) for claim in entry.get("claims") or [] if claim]
+                if entry.get("note"):
+                    items.append(str(entry["note"]))
+                return items
+            if isinstance(entry, dict):
+                return [str(item) for item in entry.values() if item]
+            return [str(entry)]
+
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, dict):
+            return expand(value)
+        if isinstance(value, list):
+            return [item for entry in value for item in expand(entry)]
+        return value
+
+
+class HeadlineRunRequest(BaseModel):
+    title: str = Field(default="", max_length=180)
+    topic: str = Field(default="general", max_length=80)
+    context: str = Field(default="", max_length=12000)
+    mode: Literal["generate", "grammar"]
+
+
+class HeadlineResult(BaseModel):
+    title: str
+
+
+class DekRunRequest(BaseModel):
+    dek: str = Field(default="", max_length=400)
+    title: str = Field(min_length=5, max_length=180)
+    context: str = Field(default="", max_length=12000)
+    mode: Literal["generate", "grammar"]
+
+
+class DekResult(BaseModel):
+    dek: str
+
+
+class BodyRunRequest(BaseModel):
+    content_html: str = Field(default="", max_length=50000)
+    title: str = Field(min_length=5, max_length=180)
+    dek: str = Field(default="", max_length=400)
+    notes: str = Field(default="", max_length=12000)
+    mode: Literal["rewrite", "notes_to_story", "grammar"]
+
+
+class BodyResult(BaseModel):
+    content_html: str
+    content_json: dict[str, Any]
+
+    @field_validator("content_json", mode="before")
+    @classmethod
+    def normalize_tiptap_content(cls, value: Any) -> dict[str, Any]:
+        if isinstance(value, list):
+            return {"type": "doc", "content": value}
+        return value
+
+
+class TagSuggestionRunRequest(BaseModel):
+    title: str = Field(min_length=5, max_length=180)
+    dek: str = Field(default="", max_length=400)
+    content_html: str = Field(default="", max_length=50000)
+    topic: str = Field(default="general", max_length=80)
+    existing_tags: list[str] = Field(default_factory=list, max_length=10)
+
+
+class TagSuggestionResult(BaseModel):
+    suggested_tags: list[str] = Field(default_factory=list, max_length=8)
 
 
 class TelemetryRunRequest(BaseModel):

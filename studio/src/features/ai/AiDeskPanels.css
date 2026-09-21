@@ -78,7 +78,63 @@
   grid-template-columns: 1fr auto;
 }
 .lead-ranker {
-  grid-template-columns: 1fr auto;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 14px;
+}
+.lead-ranker-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.lead-intake {
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.lead-ranker .lead-intake-toggle {
+  border: 0;
+  background: transparent;
+  color: var(--accent);
+  font-weight: 700;
+  font-size: 13px;
+  padding: 0;
+}
+.lead-intake textarea {
+  width: 100%;
+  min-height: 90px;
+  margin-top: 10px;
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  color: var(--ink);
+  font: inherit;
+  resize: vertical;
+}
+.lead-intake-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 9px;
+  margin-top: 10px;
+}
+.lead-intake-actions button {
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--ink);
+  padding: 11px 14px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.lead-intake-actions .primary {
+  border-color: var(--accent);
+  background: var(--accent);
+  color: #fff;
+}
+.lead-intake-actions button:disabled {
+  opacity: 0.55;
 }
 .telemetry-controls {
   display: flex;
