@@ -205,9 +205,23 @@ The upsert and the removal of absent signals happen as one operation so readers 
 - `ScoreInspectorDrawer.tsx` shows both new terms and matched sources.
 - A "Trending" chip and a format badge in the lead views.
 
+### Phase 5 — Lead intake from trends (implemented)
+
+Turns strong, under-covered cached trend signals into new `pending` leads in `lead_inbox`, so editors see them in the normal inbox rather than needing a separate feed.
+
+- **Off by default:** `TRENDS_LEAD_INTAKE_ENABLED=false`. It only has cached signals to work from once `TRENDS_REFRESH_ENABLED=true`.
+- **New settings:** `TRENDS_LEAD_MIN_STRENGTH` (default 0.5, the same `trend_strength` used in scoring) and `TRENDS_LEAD_MAX_PER_REFRESH` (default 5), so one refresh cannot flood the inbox.
+- **Grouping:** `backend/app/services/trends/leads.py` groups fresh signals by `(topic_id, geo)` and scores each group with `topic_strength()`, a topic-level sibling of `score_trend_adjustment` that shares its per-signal evidence calculation but has no lead headline to fuzzy-match against, since the signals are already grouped. Different sources that describe the same story under a different `topic_id` are **not merged** in v1 — that needs the same kind of fuzzy matching used for lead-to-signal matching, deferred until shadow data shows how often it matters.
+- **Coverage check:** a group is skipped if `count_recent_coverage` already finds 10 or more matching published articles (the same `SATURATION_STORIES` threshold as scoring) — nothing new for an editor to weigh.
+- **Lead identity:** `lead_id = "trend:<topic_id>:<geo>"`, so re-running promotion updates the same lead (headline, evidence, `source_context`) instead of duplicating it.
+- **Never overwrites an editorial decision:** a lead is skipped if it already exists with `status` `approved` or `rejected`, or if it exists but was not created by this step (`origin != "trend_feed"`). A rejected trend lead stays rejected on every later run.
+- **Fields written:** `headline` (the strongest matched signal's label), `topic: "trending"` (editors can retag), `geo`, `source_url`, a `source_context` summary naming the sources and story count, `origin: "trend_feed"`, and `origin_evidence` (up to 5 signals). `base_score` is left unset, so the normal editorial heuristic and, once scoring is on, `trend_boost` apply to it like any other lead — its headline is literally the trend label, so it matches strongly.
+- **Triggers:** automatically at the end of every `refresh_trends()` run (scheduled or manual `POST /agents/trends/refresh`), and on demand via `POST /agents/trends/promote-leads`, which promotes from the existing cache without fetching. Both are editor-only. `TrendRefreshResponse.leads_promoted` lists the lead ids touched.
+- **Studio:** a lead with `origin: "trend_feed"` shows a "From trends" badge in the inbox, alongside the existing Trending chip and format badge.
+
 ### Later (not in this pass)
 
-Feeding trending topics into `lead_inbox` as new leads, a "Suggested topics" panel, Twitter/X or Databricks connectors, and learning weights from outcomes.
+Fuzzy-merging trend signals across sources for the same story, a dedicated "Suggested topics" review panel, Twitter/X or Databricks connectors, Tavily-based lead enrichment, and learning weights from outcomes.
 
 ## 9. Test plan
 

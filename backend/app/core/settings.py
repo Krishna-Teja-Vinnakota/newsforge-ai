@@ -43,6 +43,9 @@ class Settings(BaseSettings):
     trends_sources: str = "google_news,weather,government,wikipedia"
     trends_connector_timeout_seconds: float = 5.0
     trends_max_signals_per_source: int = 50
+    trends_lead_intake_enabled: bool = False
+    trends_lead_min_strength: float = 0.5
+    trends_lead_max_per_refresh: int = 5
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

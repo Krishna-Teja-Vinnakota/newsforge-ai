@@ -143,6 +143,7 @@ def lead_to_item(document: dict[str, Any]) -> LeadInboxItem:
         trend_evidence=document.get("trend_evidence") or [],
         suggested_format=document.get("suggested_format", "standard"),
         why_now=document.get("why_now"),
+        origin=document.get("origin", "manual"),
         score_audit=document.get("score_audit") or {},
     )
 

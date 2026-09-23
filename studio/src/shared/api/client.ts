@@ -39,6 +39,7 @@ export type AiLead = {
   }[]
   suggested_format: string
   why_now: string | null
+  origin: string
   score_audit: Record<string, unknown>
 }
 export type TelemetrySimulationResponse = {

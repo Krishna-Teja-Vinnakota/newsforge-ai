@@ -60,6 +60,7 @@ export function LeadInbox({
                 <div className="lead-headline">
                   <b>{lead.headline}</b>
                   <RankShiftBadge lead={lead} />
+                  {lead.origin === 'trend_feed' && <span className="origin-badge">From trends</span>}
                   {(lead.trend_boost ?? 0) > 0 && <span className="trend-chip">Trending</span>}
                   {lead.suggested_format && lead.suggested_format !== 'standard' && (
                     <span className="format-badge">{lead.suggested_format}</span>

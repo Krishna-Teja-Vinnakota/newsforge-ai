@@ -339,6 +339,7 @@ button:disabled {
     padding: 22px;
   }
 }
+.origin-badge,
 .trend-chip,
 .format-badge {
   display: inline-flex;
@@ -354,6 +355,12 @@ button:disabled {
   color: #9a3412;
   background: #ffedd5;
   border: 1px solid #fdba74;
+}
+
+.origin-badge {
+  color: #0e7490;
+  background: #ecfeff;
+  border: 1px solid #a5f3fc;
 }
 
 .format-badge {

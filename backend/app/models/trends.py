@@ -49,3 +49,8 @@ class TrendSourceStatus(BaseModel):
 class TrendRefreshResponse(BaseModel):
     status: str
     sources: list[TrendSourceStatus] = Field(default_factory=list)
+    leads_promoted: list[str] = Field(default_factory=list)
+
+
+class TrendLeadPromotionResponse(BaseModel):
+    promoted: list[str] = Field(default_factory=list)

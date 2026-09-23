@@ -452,6 +452,81 @@ def _freshness(signal: TrendSignal, now: datetime) -> float:
     return max(0.0, 1.0 - age / lifetime)
 
 
+def _signal_evidence(
+    signal: TrendSignal, medians: dict[str, float], now: datetime
+) -> tuple[float, dict[str, Any]]:
+    """Score one signal in isolation; shared by lead-matched and topic-level scoring."""
+    freshness = _freshness(signal, now)
+    median = medians.get(signal.source, 1.0)
+    velocity_multiplier = _velocity_multiplier(signal.velocity, median)
+    rank_bonus = max(0.0, RANK_BONUS_MAX - float(signal.rank or RANK_BONUS_MAX)) if signal.rank else 0.0
+    official_bonus = (
+        OFFICIAL_BONUS
+        if bool(signal.raw.get("official")) or signal.source in {"government", "weather", "weather_alert"}
+        else 0.0
+    )
+    severity_bonus = SEVERITY_BONUSES.get(str(signal.raw.get("severity", "")).casefold(), 0.0)
+    raw_score = signal.interest_score * velocity_multiplier + rank_bonus + official_bonus + severity_bonus
+    effective = raw_score * freshness if freshness > 0 else 0.0
+    evidence = {
+        "signal_id": signal.signal_id,
+        "source": signal.source,
+        "label": signal.label,
+        "geo": signal.geo,
+        "country_code": signal.country_code,
+        "interest_score": signal.interest_score,
+        "rank": signal.rank,
+        "velocity": signal.velocity,
+        "source_median_velocity": round(median, 4),
+        "velocity_multiplier": round(velocity_multiplier, 4),
+        "freshness_multiplier": round(freshness, 4),
+        "rank_bonus": round(rank_bonus, 4),
+        "official_bonus": round(official_bonus, 4),
+        "severity_bonus": round(severity_bonus, 4),
+        "effective_score": round(effective, 4),
+        "observed_at": signal.observed_at,
+        "expires_at": signal.expires_at,
+        "source_url": signal.source_url,
+    }
+    return effective, evidence
+
+
+def topic_strength(
+    signals: Iterable[TrendSignal],
+    stories_published_7d: int,
+    *,
+    now: datetime | None = None,
+    max_signal_age_hours: int = 6,
+) -> dict[str, Any]:
+    """Score a group of same-topic, same-geo signals for lead intake (no lead to match against).
+
+    Unlike `score_trend_adjustment`, this has no headline to fuzzy-match: the caller has already
+    grouped signals by `(topic_id, geo)`, so every fresh signal in the group counts as evidence.
+    """
+    scoring_now = _utc(now or datetime.now(UTC))
+    signal_list = list(signals)
+    medians = source_velocity_medians(signal_list)
+    evidence: list[dict[str, Any]] = []
+    effective_values: list[float] = []
+    for signal in signal_list:
+        effective, item = _signal_evidence(signal, medians, scoring_now)
+        if effective <= 0:
+            continue
+        effective_values.append(effective)
+        evidence.append(item)
+    evidence.sort(key=lambda item: (-item["effective_score"], item["signal_id"]))
+    external_raw = max(effective_values, default=0.0)
+    strength = max(0.0, min(1.0, external_raw / STRENGTH_SCALE))
+    saturation = min(max(stories_published_7d, 0) / SATURATION_STORIES, 1.0)
+    return {
+        "trend_strength": round(strength, 4),
+        "saturation": round(saturation, 4),
+        "stories_published_7d": stories_published_7d,
+        "trend_evidence": evidence,
+        "trend_config": trend_config_snapshot(0.0, max_signal_age_hours=max_signal_age_hours),
+    }
+
+
 def score_trend_adjustment(
     lead: dict[str, Any],
     signals: Iterable[TrendSignal],
@@ -483,48 +558,17 @@ def score_trend_adjustment(
     effective_values: list[float] = []
 
     for signal in signal_list:
-        signal_id = signal.signal_id
         if not geo_is_eligible(str(lead.get("geo", "global")), signal, default_country):
             continue
         tokens = signal_matches_lead(lead, signal)
-        freshness = _freshness(signal, scoring_now)
-        if not tokens or freshness <= 0:
+        if not tokens:
             continue
-        median = medians.get(signal.source, 1.0)
-        velocity_multiplier = _velocity_multiplier(signal.velocity, median)
-        rank_bonus = max(0.0, RANK_BONUS_MAX - float(signal.rank or RANK_BONUS_MAX)) if signal.rank else 0.0
-        official_bonus = (
-            OFFICIAL_BONUS
-            if bool(signal.raw.get("official")) or signal.source in {"government", "weather", "weather_alert"}
-            else 0.0
-        )
-        severity_bonus = SEVERITY_BONUSES.get(str(signal.raw.get("severity", "")).casefold(), 0.0)
-        raw_score = signal.interest_score * velocity_multiplier + rank_bonus + official_bonus + severity_bonus
-        effective = raw_score * freshness
+        effective, item = _signal_evidence(signal, medians, scoring_now)
+        if effective <= 0:
+            continue
+        item["matched_tokens"] = tokens
         effective_values.append(effective)
-        evidence.append(
-            {
-                "signal_id": signal_id,
-                "source": signal.source,
-                "label": signal.label,
-                "geo": signal.geo,
-                "country_code": signal.country_code,
-                "interest_score": signal.interest_score,
-                "rank": signal.rank,
-                "velocity": signal.velocity,
-                "source_median_velocity": round(median, 4),
-                "velocity_multiplier": round(velocity_multiplier, 4),
-                "freshness_multiplier": round(freshness, 4),
-                "rank_bonus": round(rank_bonus, 4),
-                "official_bonus": round(official_bonus, 4),
-                "severity_bonus": round(severity_bonus, 4),
-                "effective_score": round(effective, 4),
-                "observed_at": signal.observed_at,
-                "expires_at": signal.expires_at,
-                "matched_tokens": tokens,
-                "source_url": signal.source_url,
-            }
-        )
+        evidence.append(item)
 
     evidence.sort(key=lambda item: (-item["effective_score"], item["signal_id"]))
     external_raw = max(effective_values, default=0.0)

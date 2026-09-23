@@ -135,7 +135,12 @@ async def refresh_trends(sources: Iterable[str] | None = None) -> TrendRefreshRe
             if "gdelt" in selected:
                 statuses.append(await _refresh_one("gdelt", geo, client, semaphore))
         overall = "success" if all(item.status != "failed" for item in statuses) else "partial_failure"
-        return TrendRefreshResponse(status=overall, sources=list(statuses))
+        # Imported here, not at module scope: leads.py reads back through this module's
+        # load_fresh_signals, and a top-level import would be circular.
+        from app.services.trends.leads import promote_trend_leads
+
+        promoted = await promote_trend_leads(datetime.now(UTC))
+        return TrendRefreshResponse(status=overall, sources=list(statuses), leads_promoted=promoted)
 
 
 async def get_trend_status() -> TrendRefreshResponse:

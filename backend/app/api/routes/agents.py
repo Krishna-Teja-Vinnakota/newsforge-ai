@@ -16,10 +16,11 @@ from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulation
 from app.models.article import ArticleStatus
 from app.core.database import get_database
 from app.models.user import UserRole
-from app.models.trends import TrendRefreshResponse
+from app.models.trends import TrendLeadPromotionResponse, TrendRefreshResponse
 from app.services.agent_runs import record_run
 from app.services.articles import unique_slug
 from app.services.content import sanitize_html
+from app.services.trends.leads import promote_trend_leads
 from app.services.trends.refresh import get_trend_status, refresh_trends
 
 router = APIRouter(prefix="/agents")
@@ -75,6 +76,14 @@ async def trend_status(
     _: dict = Depends(require_roles(*EDITOR_ROLES)),
 ) -> TrendRefreshResponse:
     return await get_trend_status()
+
+
+@router.post("/trends/promote-leads", response_model=TrendLeadPromotionResponse)
+async def manual_trend_lead_promotion(
+    _: dict = Depends(require_roles(*EDITOR_ROLES)),
+) -> TrendLeadPromotionResponse:
+    """Promote leads from the currently cached signals, without waiting for a refresh."""
+    return TrendLeadPromotionResponse(promoted=await promote_trend_leads())
 
 
 @router.get("/runs", response_model=AgentRunHistoryListResponse)

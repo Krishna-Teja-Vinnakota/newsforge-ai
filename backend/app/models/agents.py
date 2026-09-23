@@ -49,6 +49,7 @@ class Lead(LeadInput):
     trend_evidence: list[dict[str, Any]] = Field(default_factory=list)
     suggested_format: str = "standard"
     why_now: str | None = None
+    origin: str = "manual"
 
 
 class LeadDecisionRequest(BaseModel):

@@ -61,6 +61,7 @@ export interface RankedLead {
   trend_evidence: TrendEvidence[]
   suggested_format: string
   why_now: string | null
+  origin: string
   suggested_angle: string
   suggested_publish_window: string
   reasoning: string

@@ -2,6 +2,7 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 
+from app.core.settings import settings
 from app.models.trends import ConnectorResult, TrendSignal
 from app.services.trends.refresh import _record_result, _refresh_lock, refresh_trends
 
@@ -60,6 +61,14 @@ async def test_success_empty_clears_scope_and_is_not_failure(db):
     status = await _record_result(ConnectorResult(source="google_news", geo="US", status="success_empty"), NOW, 1)
     assert status.status == "success_empty"
     assert await db.trend_signals.count_documents({}) == 0
+
+
+@pytest.mark.asyncio
+async def test_refresh_response_always_carries_a_leads_promoted_list(db, monkeypatch):
+    # Lead intake is off by default; refresh_trends() should not fail or omit the field.
+    monkeypatch.setattr(settings, "trends_lead_intake_enabled", False)
+    result = await refresh_trends([])
+    assert result.leads_promoted == []
 
 
 @pytest.mark.asyncio
