@@ -4,7 +4,10 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
   if (!lead) return null
   const base = lead.base_score ?? 0
   const delta = lead.learned_weight_delta ?? 0
-  const final = lead.final_score || lead.priority_score || base + delta
+  const trend = lead.trend_boost ?? 0
+  const coverage = lead.coverage_adjustment ?? 0
+  const final = lead.final_score ?? lead.priority_score ?? base + delta + trend + coverage
+  const sources = Array.from(new Set((lead.trend_evidence ?? []).map((evidence) => evidence.source)))
   return (
     <div className="score-drawer-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
@@ -36,19 +39,43 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
               {delta.toFixed(2)} {lead.geo} Weight
             </dd>
           </div>
+          <div>
+            <dt>Trend boost</dt>
+            <dd className={trend > 0 ? 'positive' : ''}>+{trend.toFixed(2)}</dd>
+          </div>
+          <div>
+            <dt>Coverage adjustment</dt>
+            <dd className={coverage >= 0 ? 'positive' : 'negative'}>
+              {coverage >= 0 ? '+' : ''}
+              {coverage.toFixed(2)}
+            </dd>
+          </div>
           <div className="score-total">
             <dt>Final calculation</dt>
             <dd>{final.toFixed(2)}</dd>
             <code>
-              final_score = {base.toFixed(2)} + {delta.toFixed(2)}
+              final_score = {base.toFixed(2)} + {delta.toFixed(2)} + {trend.toFixed(2)} + {coverage.toFixed(2)}
             </code>
           </div>
         </dl>
+        {sources.length > 0 && (
+          <section className="trend-sources">
+            <p>Matched trend sources</p>
+            <div>
+              {sources.map((source) => (
+                <span className="trend-chip" key={source}>
+                  {source.replaceAll('_', ' ')}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
         <section className="editorial-guidance">
           <p>Editorial guidance</p>
           <blockquote>
             {lead.suggested_angle || lead.reasoning || 'The Selection Agent has not supplied a framing angle yet.'}
           </blockquote>
+          {lead.why_now && <p className="why-now">Why now: {lead.why_now}</p>}
         </section>
       </aside>
     </div>

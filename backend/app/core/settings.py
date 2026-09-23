@@ -34,6 +34,15 @@ class Settings(BaseSettings):
     telemetry_retention_days: int = 30
     agent_run_retention_days: int = 90
     audit_retention_days: int = 365
+    trends_refresh_enabled: bool = False
+    trends_scoring_enabled: bool = False
+    trends_refresh_minutes: int = 30
+    trends_max_total_adjustment: float = 0.10
+    trends_max_age_hours: int = 6
+    trends_geo: str = "US"
+    trends_sources: str = "google_news,weather,government,wikipedia"
+    trends_connector_timeout_seconds: float = 5.0
+    trends_max_signals_per_source: int = 50
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 

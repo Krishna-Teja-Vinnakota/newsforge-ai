@@ -2,6 +2,7 @@ import { type KeyboardEvent, useEffect, useMemo, useState } from 'react'
 import { api, type ChatMessage } from '../../shared/api/client'
 import { NotionTiptapEditor } from './editor/NotionTiptapEditor'
 import { AiReviewModal, type AiInsights, type AiProposal } from './ai/AiReviewModal'
+import { HeadlinePicker } from './ai/HeadlinePicker'
 import { StoryChatLauncher } from './ai/StoryChatLauncher'
 import { StoryChatPanel, type StoryChatMessage } from './ai/StoryChatPanel'
 import { ActionMenu } from '../../ActionMenu'
@@ -78,6 +79,7 @@ function StoryEditor({
   const [showBodyNotes, setShowBodyNotes] = useState(false)
   const [chatMessages, setChatMessages] = useState<StoryChatMessage[]>([])
   const [showChat, setShowChat] = useState(false)
+  const [headlineOptions, setHeadlineOptions] = useState<string[] | null>(null)
   const [chatSending, setChatSending] = useState(false)
   const [chatError, setChatError] = useState('')
   const status = article?.status ?? 'draft'
@@ -232,6 +234,26 @@ function StoryEditor({
       setNotice('AI proposal is ready to review.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to prepare an AI proposal.')
+    } finally {
+      setWorking(false)
+    }
+  }
+  const suggestHeadlines = async () => {
+    if (!form.title.trim() && !form.dek.trim() && !form.content_html.trim()) {
+      setNotice('Add a working headline, summary or body so AI has context for headline options.')
+      return
+    }
+    try {
+      setWorking(true)
+      setNotice('Drafting three headline options…')
+      const run = await api.generateHeadline({ title: form.title, topic: form.topic, context: form.dek || form.content_html, mode: 'options' })
+      const output = run.output as { title?: string; options?: string[] }
+      const options = output.options?.length ? output.options : output.title ? [output.title] : []
+      if (!options.length) throw new Error('No headline options were returned.')
+      setHeadlineOptions(options)
+      setNotice('Pick a headline, then click to update.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to suggest headlines.')
     } finally {
       setWorking(false)
     }
@@ -397,11 +419,26 @@ function StoryEditor({
                 label="AI headline actions"
                 disabled={working}
                 items={[
+                  { key: 'options', label: 'Suggest 3 options', onSelect: () => void suggestHeadlines() },
                   { key: 'generate', label: 'Generate', onSelect: () => void scopedAi('headline-generate') },
                   { key: 'grammar', label: 'Fix grammar', onSelect: () => void scopedAi('headline-grammar'), disabled: !form.title.trim() },
                 ]}
               />
             </div>
+          )}
+          {editable && headlineOptions && (
+            <HeadlinePicker
+              options={headlineOptions}
+              current={form.title}
+              disabled={working}
+              onRegenerate={() => void suggestHeadlines()}
+              onClose={() => setHeadlineOptions(null)}
+              onUpdate={(headline) => {
+                setForm((current) => ({ ...current, title: headline }))
+                setHeadlineOptions(null)
+                setNotice('Headline updated. Save the draft to keep it.')
+              }}
+            />
           )}
           <textarea
             className="editor-dek"

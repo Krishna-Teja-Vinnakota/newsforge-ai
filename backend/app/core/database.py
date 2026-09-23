@@ -35,6 +35,9 @@ async def connect_to_mongo(retries: int = 5, retry_delay_seconds: float = 2) -> 
             await database.telemetry_events.create_index("timestamp")
             await database.workflow_threads.create_index("thread_id", unique=True)
             await database.lead_inbox.create_index("lead_id", unique=True)
+            await database.trend_signals.create_index("expires_at", expireAfterSeconds=0)
+            await database.trend_signals.create_index([("scope_source", 1), ("scope_geo", 1), ("expires_at", 1)])
+            await database.trend_refresh_runs.create_index([("source", 1), ("geo", 1), ("started_at", -1)])
             # Ranking signals are identified by their Mongo `_id` (topic|geo).
             # Older demo databases created a unique `key` index, even though
             # the signal documents never wrote that field. That legacy index

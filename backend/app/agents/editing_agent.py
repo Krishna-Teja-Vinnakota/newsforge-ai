@@ -36,10 +36,22 @@ async def _generate(schema, task: str, payload: dict, fallback):
 
 
 async def run_headline(title: str, topic: str, context: str, mode: str) -> HeadlineResult:
-    fallback = {"title": title.strip() or f"Latest {topic.replace('-', ' ')} update"}
+    base = title.strip() or f"Latest {topic.replace('-', ' ')} update"
+    fallback = {"title": base}
     task = "Create a concise, accurate news headline." if mode == "generate" else "Correct grammar only; preserve meaning and facts in this headline."
+    if mode == "options":
+        fallback = {"title": base, "options": [base, f"{base}: what we know", f"What to know: {base}"]}
+        task = (
+            "Write exactly three distinct, concise, accurate news headline options, each under 120 characters, "
+            "using different angles or phrasing. Put them in `options` and set `title` to the first option."
+        )
     clean_context = clean_editorial_context(context, title)
-    return await _generate(HeadlineResult, task, {"title": title, "topic": topic, "context": clean_context}, fallback)
+    result = await _generate(HeadlineResult, task, {"title": title, "topic": topic, "context": clean_context}, fallback)
+    if mode == "options":
+        result.options = list(dict.fromkeys(option.strip() for option in result.options if option.strip()))[:3]
+        if not result.options:
+            result.options = [result.title]
+    return result
 
 
 async def run_dek(dek: str, title: str, context: str, mode: str) -> DekResult:

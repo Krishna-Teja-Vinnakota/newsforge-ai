@@ -339,3 +339,38 @@ button:disabled {
     padding: 22px;
   }
 }
+.trend-chip,
+.format-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.18rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.trend-chip {
+  color: #9a3412;
+  background: #ffedd5;
+  border: 1px solid #fdba74;
+}
+
+.format-badge {
+  color: #3730a3;
+  background: #eef2ff;
+  border: 1px solid #c7d2fe;
+  text-transform: capitalize;
+}
+
+.trend-sources > div {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.why-now {
+  margin-top: 0.75rem;
+  color: var(--muted, #64748b);
+  font-size: 0.85rem;
+}

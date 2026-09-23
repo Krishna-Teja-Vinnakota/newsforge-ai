@@ -140,19 +140,6 @@ async def simulate_telemetry(
         for document in existing_docs
     ]
     selection_output = await run_selection(candidates)
-    for lead in selection_output.ranked:
-        await inbox.update_one(
-            {"lead_id": lead.lead_id},
-            {"$set": {
-                "base_score": lead.base_score,
-                "previous_rank": lead.previous_rank,
-                "current_rank": lead.current_rank,
-                "rank_shift": lead.rank_shift,
-                "learned_weight_delta": lead.learned_weight_delta,
-                "final_score": lead.final_score,
-                "updated_at": datetime.now(UTC),
-            }},
-        )
     return TelemetrySimulationResponse(
         updated_signal=updated_signal,
         affected_leads_count=len(selection_output.ranked),

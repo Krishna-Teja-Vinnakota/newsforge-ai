@@ -1,6 +1,6 @@
 import re
 import unicodedata
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from bson import ObjectId
 from fastapi import HTTPException, status
@@ -71,3 +71,15 @@ async def get_article_or_404(article_id: str) -> dict:
 
 async def add_workflow_event(article_id: ObjectId, actor_id: ObjectId, from_status: str | None, to_status: str, note: str) -> None:
     await get_database().workflow_events.insert_one({"article_id": article_id, "actor_id": actor_id, "from_status": from_status, "to_status": to_status, "note": note, "created_at": datetime.now(UTC)})
+
+
+async def load_recent_published_article_metadata(
+    *, now: datetime | None = None, days: int = 7
+) -> list[dict]:
+    """Load the only article fields used for coverage matching in one query."""
+    cutoff = (now or datetime.now(UTC)) - timedelta(days=days)
+    cursor = get_database().articles.find(
+        {"status": ArticleStatus.PUBLISHED, "published_at": {"$gte": cutoff}},
+        {"title": 1, "dek": 1, "tags": 1, "topic": 1, "published_at": 1},
+    )
+    return [article async for article in cursor]

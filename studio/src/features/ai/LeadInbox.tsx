@@ -53,13 +53,17 @@ export function LeadInbox({
         visibleLeads.map((lead) => {
           const rankChanged =
             lead.previous_rank !== null && lead.current_rank !== null && lead.previous_rank !== lead.current_rank
-          const score = lead.final_score || lead.priority_score || 0
+          const score = lead.final_score ?? lead.priority_score ?? 0
           return (
             <article className={rankChanged ? 'lead-rank-changed' : ''} key={`lead-${lead.id}`}>
               <div>
                 <div className="lead-headline">
                   <b>{lead.headline}</b>
                   <RankShiftBadge lead={lead} />
+                  {(lead.trend_boost ?? 0) > 0 && <span className="trend-chip">Trending</span>}
+                  {lead.suggested_format && lead.suggested_format !== 'standard' && (
+                    <span className="format-badge">{lead.suggested_format}</span>
+                  )}
                   <button
                     className="score-pill"
                     onClick={() => onInspect(lead)}

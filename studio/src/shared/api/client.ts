@@ -28,6 +28,18 @@ export type AiLead = {
   previous_rank: number | null
   current_rank: number | null
   rank_shift: number
+  trend_boost: number
+  coverage_adjustment: number
+  trend_evidence: {
+    signal_id: string
+    source: string
+    label: string
+    matched_tokens: string[]
+    effective_score: number
+  }[]
+  suggested_format: string
+  why_now: string | null
+  score_audit: Record<string, unknown>
 }
 export type TelemetrySimulationResponse = {
   status: 'success'
@@ -124,7 +136,7 @@ export const api = {
     article_id?: string
     tone?: 'formal' | 'conversational' | 'urgent'
   }) => request<AgentRun>('/agents/produce', { method: 'POST', body: JSON.stringify(body) }),
-  generateHeadline: (body: { title: string; topic: string; context: string; mode: 'generate' | 'grammar' }) =>
+  generateHeadline: (body: { title: string; topic: string; context: string; mode: 'generate' | 'grammar' | 'options' }) =>
     request<AgentRun>('/agents/headline', { method: 'POST', body: JSON.stringify(body) }),
   generateDek: (body: { dek: string; title: string; context: string; mode: 'generate' | 'grammar' }) =>
     request<AgentRun>('/agents/dek', { method: 'POST', body: JSON.stringify(body) }),

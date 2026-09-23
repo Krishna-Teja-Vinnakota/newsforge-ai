@@ -56,9 +56,22 @@ export interface RankedLead {
   previous_rank: number | null
   current_rank: number | null
   rank_shift: number
+  trend_boost: number
+  coverage_adjustment: number
+  trend_evidence: TrendEvidence[]
+  suggested_format: string
+  why_now: string | null
   suggested_angle: string
   suggested_publish_window: string
   reasoning: string
+}
+
+export interface TrendEvidence {
+  signal_id: string
+  source: string
+  label: string
+  matched_tokens: string[]
+  effective_score: number
 }
 
 export interface TelemetrySimulationRequest {

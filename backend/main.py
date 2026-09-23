@@ -13,6 +13,7 @@ from app.core.database import ping_mongo
 from app.services.bootstrap import ensure_bootstrap_admin, ensure_default_topics
 from app.middleware.audit import AuditMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
+from app.services.trends import start_refresh_loop, stop_refresh_loop
 
 logger = logging.getLogger("newsforge.startup")
 
@@ -34,7 +35,9 @@ async def lifespan(_: FastAPI):
     if mongo_connected and await ping_mongo():
         await ensure_bootstrap_admin()
         await ensure_default_topics()
+        start_refresh_loop()
     yield
+    await stop_refresh_loop()
     await close_mongo_connection()
 
 

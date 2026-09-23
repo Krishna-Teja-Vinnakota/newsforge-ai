@@ -44,6 +44,11 @@ class Lead(LeadInput):
     previous_rank: int | None = None
     current_rank: int | None = None
     rank_shift: int = 0
+    trend_boost: float = 0.0
+    coverage_adjustment: float = 0.0
+    trend_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    suggested_format: str = "standard"
+    why_now: str | None = None
 
 
 class LeadDecisionRequest(BaseModel):
@@ -55,6 +60,7 @@ class LeadInboxItem(Lead):
     priority_score: float | None = None
     suggested_angle: str | None = None
     reasoning: str | None = None
+    score_audit: dict[str, Any] = Field(default_factory=dict)
 
 
 class RankedLead(BaseModel):
@@ -67,9 +73,15 @@ class RankedLead(BaseModel):
     previous_rank: int | None = None
     current_rank: int | None = None
     rank_shift: int = 0
+    trend_boost: float = 0.0
+    coverage_adjustment: float = 0.0
+    trend_evidence: list[dict[str, Any]] = Field(default_factory=list)
+    suggested_format: str = "standard"
+    why_now: str | None = None
     suggested_angle: str
     suggested_publish_window: str
     reasoning: str
+    score_audit: dict[str, Any] = Field(default_factory=dict)
 
 
 class SelectionResult(BaseModel):
@@ -167,11 +179,12 @@ class HeadlineRunRequest(BaseModel):
     title: str = Field(default="", max_length=180)
     topic: str = Field(default="general", max_length=80)
     context: str = Field(default="", max_length=12000)
-    mode: Literal["generate", "grammar"]
+    mode: Literal["generate", "grammar", "options"]
 
 
 class HeadlineResult(BaseModel):
     title: str
+    options: list[str] = Field(default_factory=list)
 
 
 class DekRunRequest(BaseModel):

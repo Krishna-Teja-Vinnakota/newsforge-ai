@@ -5,7 +5,7 @@ from pymongo import ReturnDocument
 
 from app.agents.production_agent import PROMPT_VERSION as PRODUCTION_PROMPT_VERSION, run_production
 from app.agents.editing_agent import BODY_PROMPT_VERSION, CHAT_PROMPT_VERSION, DEK_PROMPT_VERSION, HEADLINE_PROMPT_VERSION, TAGS_PROMPT_VERSION, run_body, run_chat, run_dek, run_headline, run_tags
-from app.agents.selection_agent import PROMPT_VERSION as SELECTION_PROMPT_VERSION, run_selection
+from app.agents.selection_agent import PROMPT_VERSION as SELECTION_PROMPT_VERSION, lead_to_item, run_selection
 from app.agents.telemetry_agent import PROMPT_VERSION as TELEMETRY_PROMPT_VERSION, run_telemetry
 from app.api.dependencies import require_roles
 from app.core.settings import settings
@@ -16,9 +16,11 @@ from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulation
 from app.models.article import ArticleStatus
 from app.core.database import get_database
 from app.models.user import UserRole
+from app.models.trends import TrendRefreshResponse
 from app.services.agent_runs import record_run
 from app.services.articles import unique_slug
 from app.services.content import sanitize_html
+from app.services.trends.refresh import get_trend_status, refresh_trends
 
 router = APIRouter(prefix="/agents")
 EDITOR_ROLES = (UserRole.ADMIN, UserRole.EDITOR)
@@ -42,7 +44,7 @@ async def list_leads(_: dict = Depends(require_roles(*EDITOR_ROLES))) -> list[Le
         )
     ]
     cursor = get_database().lead_inbox.find({"lead_id": {"$nin": published_lead_ids}}).sort([("current_rank", 1), ("final_score", -1), ("updated_at", -1)]).limit(100)
-    return [LeadInboxItem(id=item["lead_id"], headline=item["headline"], topic=item.get("topic", "general"), geo=item.get("geo", "global"), source_url=item.get("source_url"), published_at=item.get("published_at"), status=item.get("status", "pending"), priority_score=item.get("priority_score"), suggested_angle=item.get("suggested_angle"), reasoning=item.get("reasoning"), base_score=item.get("base_score", 0.0), learned_weight_delta=item.get("learned_weight_delta", 0.0), final_score=item.get("final_score", 0.0), previous_rank=item.get("previous_rank"), current_rank=item.get("current_rank"), rank_shift=item.get("rank_shift", 0)) async for item in cursor]
+    return [lead_to_item(item) async for item in cursor]
 
 
 @router.post("/leads/{lead_id}/approve", response_model=LeadInboxItem)
@@ -50,7 +52,7 @@ async def approve_lead(lead_id: str, payload: LeadDecisionRequest, _: dict = Dep
     item = await get_database().lead_inbox.find_one_and_update({"lead_id": lead_id}, {"$set": {"status": "approved", "decision_note": payload.note, "updated_at": datetime.now(UTC)}}, return_document=ReturnDocument.AFTER)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    return LeadInboxItem(id=item["lead_id"], headline=item["headline"], topic=item.get("topic", "general"), geo=item.get("geo", "global"), source_url=item.get("source_url"), published_at=item.get("published_at"), status="approved", priority_score=item.get("priority_score"), suggested_angle=item.get("suggested_angle"), reasoning=item.get("reasoning"))
+    return lead_to_item(item)
 
 
 @router.post("/leads/{lead_id}/reject", response_model=LeadInboxItem)
@@ -58,7 +60,21 @@ async def reject_lead(lead_id: str, payload: LeadDecisionRequest, _: dict = Depe
     item = await get_database().lead_inbox.find_one_and_update({"lead_id": lead_id}, {"$set": {"status": "rejected", "decision_note": payload.note, "updated_at": datetime.now(UTC)}}, return_document=ReturnDocument.AFTER)
     if item is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Lead not found")
-    return LeadInboxItem(id=item["lead_id"], headline=item["headline"], topic=item.get("topic", "general"), geo=item.get("geo", "global"), source_url=item.get("source_url"), published_at=item.get("published_at"), status="rejected", priority_score=item.get("priority_score"), suggested_angle=item.get("suggested_angle"), reasoning=item.get("reasoning"))
+    return lead_to_item(item)
+
+
+@router.post("/trends/refresh", response_model=TrendRefreshResponse)
+async def manual_trend_refresh(
+    _: dict = Depends(require_roles(*EDITOR_ROLES)),
+) -> TrendRefreshResponse:
+    return await refresh_trends()
+
+
+@router.get("/trends/status", response_model=TrendRefreshResponse)
+async def trend_status(
+    _: dict = Depends(require_roles(*EDITOR_ROLES)),
+) -> TrendRefreshResponse:
+    return await get_trend_status()
 
 
 @router.get("/runs", response_model=AgentRunHistoryListResponse)
@@ -129,18 +145,6 @@ async def selection_run(payload: SelectionRunRequest, _: dict = Depends(require_
         raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="No leads are available to rank")
     selection_payload = SelectionRunRequest(leads=leads)
     run = await record_run(AgentName.SELECTION, settings.gemini_selection_model or "mock", SELECTION_PROMPT_VERSION, selection_payload.model_dump(mode="json"), lambda: run_selection(leads))
-    ranked = {item["lead_id"]: item for item in run.output.get("ranked", [])}
-    for lead in leads:
-        result = ranked.get(lead.id, {})
-        existing = await get_database().lead_inbox.find_one({"lead_id": lead.id}, {"current_rank": 1, "status": 1})
-        previous_rank = result.get("previous_rank")
-        current_rank = result.get("current_rank")
-        rank_shift = result.get("rank_shift", 0)
-        base_score = result.get("base_score", 0.0)
-        learned_delta = result.get("learned_weight_delta", 0.0)
-        final_score = round(base_score + learned_delta, 4)
-        current_status = (existing or {}).get("status", "pending")
-        await get_database().lead_inbox.update_one({"lead_id": lead.id}, {"$set": {**lead.model_dump(mode="json"), "lead_id": lead.id, "status": current_status, "priority_score": result.get("priority_score"), "suggested_angle": result.get("suggested_angle"), "reasoning": result.get("reasoning"), "base_score": base_score, "learned_weight_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift, "score_audit": {"base_score": base_score, "learned_delta": learned_delta, "final_score": final_score, "previous_rank": previous_rank, "current_rank": current_rank, "rank_shift": rank_shift}, "updated_at": datetime.now(UTC)}}, upsert=True)
     return run
 
 
