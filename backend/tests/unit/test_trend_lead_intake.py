@@ -7,7 +7,8 @@ from app.services.trends.leads import promote_trend_leads
 from app.services.trends.refresh import refresh_trends
 
 
-NOW = datetime(2026, 9, 21, 12, tzinfo=UTC)
+# Signals expire after six hours, so the fixture time must track the real clock the endpoints use.
+NOW = datetime.now(UTC).replace(microsecond=0)
 
 
 def strong_signal(topic_id: str = "heat-warning", **updates) -> dict:

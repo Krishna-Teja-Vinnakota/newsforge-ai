@@ -243,7 +243,11 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
     for candidate in candidates:
         if candidate["base_score"] is None:
             candidate["base_score"] = baseline_editorial_score(candidate)
-        candidate["learned_weight_delta"] = signal_deltas.get(f"{candidate['topic']}|{candidate['geo']}", 0.0)
+        # Story-level reader telemetry is often recorded without a geography, so fall back to
+        # the topic's global signal when there is none for this exact topic|geo.
+        candidate["learned_weight_delta"] = signal_deltas.get(
+            f"{candidate['topic']}|{candidate['geo']}", signal_deltas.get(f"{candidate['topic']}|global", 0.0)
+        )
         candidate["trend_score"] = None
         base_final = candidate["base_score"] + candidate["learned_weight_delta"]
         if trend_mode:

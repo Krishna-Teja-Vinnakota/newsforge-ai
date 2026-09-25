@@ -1,10 +1,9 @@
 import hashlib
-import secrets
 from datetime import UTC, datetime
 from uuid import uuid4
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Header, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
 from app.agents.selection_agent import run_selection
@@ -35,17 +34,27 @@ class PublicTelemetryEvent(BaseModel):
     duration_sec: int = Field(default=0, ge=0, le=86400)
 
 
-def actor_key(visitor_id: str | None) -> str:
-    raw = visitor_id or secrets.token_urlsafe(32)
+def actor_key(visitor_id: str | None, request: Request | None = None) -> str:
+    """Hash a stable reader identity.
+
+    Browsers send X-NewsForge-Visitor. A client without it must not get a fresh random identity
+    per request (that made every view and like count as a new reader), so it is identified by
+    network address and user agent instead.
+    """
+    if visitor_id:
+        raw = visitor_id
+    else:
+        client = request.client.host if request and request.client else "unknown"
+        raw = f"anonymous:{client}:{request.headers.get('user-agent', '') if request else ''}"
     return hashlib.sha256(raw.encode()).hexdigest()
 
 
 @router.post("/telemetry/event", status_code=status.HTTP_202_ACCEPTED, tags=["telemetry"])
-async def ingest_public_telemetry_event(payload: PublicTelemetryEvent, x_newsforge_visitor: str | None = Header(default=None)) -> dict[str, str]:
+async def ingest_public_telemetry_event(payload: PublicTelemetryEvent, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> dict[str, str]:
     """Accept a rate-limited raw reader event without exposing agent controls."""
     await get_database().telemetry_events.insert_one({
         "topic": payload.topic.lower(), "geo": payload.geo, "event_type": payload.event_type,
-        "platform": payload.platform, "visitor_key": actor_key(x_newsforge_visitor),
+        "platform": payload.platform, "visitor_key": actor_key(x_newsforge_visitor, request),
         "duration_sec": payload.duration_sec, "timestamp": datetime.now(UTC), "is_simulation": False,
     })
     return {"status": "accepted"}
@@ -61,22 +70,16 @@ async def published_article_id_or_404(article_id: str) -> ObjectId:
 
 
 @router.post("/articles/{article_id}/view", response_model=FeedbackResponse, tags=["articles"])
-async def track_view(article_id: str, response: Response, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
+async def track_view(article_id: str, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
     resolved_id = await published_article_id_or_404(article_id)
-    visitor = x_newsforge_visitor or secrets.token_urlsafe(32)
-    if not x_newsforge_visitor:
-        response.set_cookie("newsforge_visitor", visitor, max_age=60 * 60 * 24 * 365, httponly=False, samesite="lax")
-    metrics = await record_view(resolved_id, actor_key(visitor))
+    metrics = await record_view(resolved_id, actor_key(x_newsforge_visitor, request))
     return FeedbackResponse(article_id=article_id, viewer_action=None, metrics=metrics)
 
 
 @router.post("/articles/{article_id}/feedback", response_model=FeedbackResponse, tags=["articles"])
-async def submit_feedback(article_id: str, payload: FeedbackRequest, response: Response, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
+async def submit_feedback(article_id: str, payload: FeedbackRequest, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
     resolved_id = await published_article_id_or_404(article_id)
-    visitor = x_newsforge_visitor or secrets.token_urlsafe(32)
-    if not x_newsforge_visitor:
-        response.set_cookie("newsforge_visitor", visitor, max_age=60 * 60 * 24 * 365, httponly=False, samesite="lax")
-    viewer_action, metrics = await record_feedback(resolved_id, actor_key(visitor), payload.action)
+    viewer_action, metrics = await record_feedback(resolved_id, actor_key(x_newsforge_visitor, request), payload.action)
     return FeedbackResponse(article_id=article_id, viewer_action=viewer_action, metrics=metrics)
 
 
@@ -129,7 +132,9 @@ async def simulate_telemetry(
         },
     )
     inbox = get_database().lead_inbox
-    existing_docs = [document async for document in inbox.find({})]
+    # Re-rank only leads an editor can still act on, bounded like a manual selection run.
+    open_leads = inbox.find({"status": {"$nin": ["rejected", "published"]}}).sort([("current_rank", 1), ("updated_at", -1)]).limit(25)
+    existing_docs = [document async for document in open_leads]
     candidates = [
         LeadCandidate(
             id=document["lead_id"],

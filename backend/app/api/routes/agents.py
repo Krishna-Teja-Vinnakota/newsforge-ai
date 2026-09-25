@@ -100,7 +100,7 @@ async def list_agent_runs(
     collection = get_database().agent_runs
     total = await collection.count_documents(criteria)
     cursor = collection.find(criteria).sort("created_at", -1).skip((page - 1) * page_size).limit(page_size)
-    items = [AgentRunHistoryResponse(id=str(item["_id"]), agent=item["agent"], status=item["status"], output=item.get("output", {}), input=item.get("input", {}), error=item.get("error"), model=item["model"], prompt_version=item["prompt_version"], duration_ms=item["duration_ms"], created_at=item["created_at"]) async for item in cursor]
+    items = [AgentRunHistoryResponse(id=str(item["_id"]), agent=item["agent"], status=item["status"], output=item.get("output", {}), input=item.get("input", {}), error=item.get("error"), model=item["model"], prompt_version=item["prompt_version"], duration_ms=item["duration_ms"], created_at=item["created_at"], used_fallback=item.get("used_fallback", False)) async for item in cursor]
     return AgentRunHistoryListResponse(items=items, total=total)
 
 
@@ -181,6 +181,7 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "provenance": output.get("provenance", []),
         "model_name": settings.gemini_production_model or "mock",
         "generated_at": now,
+        "used_fallback": run.used_fallback,
     }
 
     # Enhancing an existing story is deliberately generation-only.  The
@@ -225,6 +226,10 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         "retrieved_sources": retrieved_sources,
         "metrics": {"views": 0, "likes": 0, "dislikes": 0, "engagement_ratio": 0, "popularity_score": 0, "seo_score": None},
     }
+    # Reader telemetry is keyed by topic|geo, so a lead-sourced story must carry the lead's geo
+    # for its engagement to influence that lead's ranking.
+    source_lead = await get_database().lead_inbox.find_one({"lead_id": payload.source_lead_id}, {"geo": 1}) if payload.source_lead_id else None
+    document["geo"] = (source_lead or {}).get("geo") or "global"
     existing = None
     if payload.source_lead_id:
         existing = await get_database().articles.find_one({"source_lead_id": payload.source_lead_id, "status": ArticleStatus.DRAFT})
@@ -273,4 +278,6 @@ async def tag_suggestion_run(payload: TagSuggestionRunRequest, _: dict = Depends
 
 @router.post("/telemetry/recalculate", response_model=AgentRunResponse)
 async def telemetry_run(payload: TelemetryRunRequest, _: dict = Depends(require_roles(*EDITOR_ROLES)), __: None = Depends(require_ai_feature)) -> AgentRunResponse:
+    if not ObjectId.is_valid(payload.article_id) or not await get_database().articles.find_one({"_id": ObjectId(payload.article_id)}, {"_id": 1}):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Article not found")
     return await record_run(AgentName.TELEMETRY, settings.gemini_telemetry_model or "mock", TELEMETRY_PROMPT_VERSION, payload.model_dump(), lambda: run_telemetry(payload.article_id))

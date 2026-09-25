@@ -50,7 +50,11 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
         source_lead_id: lead.id,
       })
       const articleId = (run.output as { article?: { id: string } }).article?.id
-      setNotice('Article draft generated successfully! Opening it in Stories…')
+      setNotice(
+        run.used_fallback
+          ? 'The AI model did not respond, so this draft is a basic template. Opening it in Stories…'
+          : 'Article draft generated successfully! Opening it in Stories…'
+      )
       load()
       if (articleId) onDraftCreated?.(articleId)
     } catch (error) {

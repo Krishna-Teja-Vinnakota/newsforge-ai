@@ -72,9 +72,9 @@ async def run_telemetry(article_id: str) -> TelemetryResult:
     prompt = build_telemetry_prompt(metrics, settings.agent_max_weight_delta)
     result = await get_provider().generate_json(model=settings.gemini_telemetry_model, prompt=prompt, schema=TelemetryResult, fallback=fallback)
     result.weight_delta = max(-settings.agent_max_weight_delta, min(settings.agent_max_weight_delta, result.weight_delta))
-    # Keep the article metadata authoritative; the LLM evaluates engagement, not taxonomy.
+    # Keep the article metadata authoritative; the LLM evaluates engagement, not taxonomy or identity.
     result.topic = topic
-    result.weight_delta = max(-settings.agent_max_weight_delta, min(settings.agent_max_weight_delta, result.weight_delta))
+    result.article_id = article_id
     await update_ranking_signal(
         topic,
         geo,

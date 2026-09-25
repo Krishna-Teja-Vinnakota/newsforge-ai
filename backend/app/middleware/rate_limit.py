@@ -22,7 +22,11 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         path = request.url.path
         if path == "/api/v1/telemetry/event":
             return ("telemetry", 60)
-        if path.startswith("/api/v1/agents/"):
+        # Reader views and feedback feed ranking, so bound how fast one address can move them.
+        if request.method == "POST" and path.startswith("/api/v1/articles/") and path.endswith(("/view", "/feedback")):
+            return ("reader", 30)
+        # Only calls that can spend model quota count; browsing leads, runs and trend status is free.
+        if request.method == "POST" and path.startswith("/api/v1/agents/"):
             return ("agents", 10)
         return None
 

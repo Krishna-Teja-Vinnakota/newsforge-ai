@@ -2,14 +2,21 @@ import asyncio
 import json
 import logging
 from abc import ABC, abstractmethod
+from contextvars import ContextVar
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
 
 from app.core.settings import settings
+from app.services.content import reconcile_document
 
 Schema = TypeVar("Schema", bound=BaseModel)
 logger = logging.getLogger("uvicorn.error")
+
+# True when the most recent generation in this task returned the agent's templated
+# fallback instead of model output. record_run reads it so the run history and the
+# UI can tell an editor that a result was not written by the model.
+fallback_used: ContextVar[bool] = ContextVar("fallback_used", default=False)
 
 
 class GeminiProvider(ABC):
@@ -23,6 +30,7 @@ class MockGeminiProvider(GeminiProvider):
     name = "mock-gemini"
 
     async def generate_json(self, *, model: str, prompt: str, schema: type[Schema], fallback: dict[str, Any]) -> Schema:
+        fallback_used.set(True)
         return schema.model_validate(fallback)
 
 
@@ -78,6 +86,11 @@ class VertexGeminiProvider(GeminiProvider):
             )
             generated = json.loads(response.text)
             if allows_free_form_objects:
+                if isinstance(generated, dict):
+                    # If the model returned only one of content_html/content_json, derive the
+                    # other from it. Otherwise the default merge below would fill the gap with
+                    # the templated fallback and leave the two representations disagreeing.
+                    reconcile_document(generated)
                 # JSON mode permits Gemini to omit fields that are not needed
                 # for its prose. Fill those fields from the agent's known-good
                 # fallback while retaining every generated story field.
@@ -97,6 +110,7 @@ class VertexGeminiProvider(GeminiProvider):
                 generated = merge_defaults(fallback, generated)
             return schema.model_validate(generated)
 
+        fallback_used.set(False)
         # The free tier intermittently returns 503 "high demand" for a few
         # seconds at a time. A short retry with backoff recovers most of
         # those transient failures instead of immediately settling for the
@@ -108,7 +122,8 @@ class VertexGeminiProvider(GeminiProvider):
                 return await asyncio.wait_for(asyncio.to_thread(request), timeout=settings.agent_timeout_seconds)
             except Exception as error:  # noqa: BLE001 - retried below, then handled by the fallback path
                 last_error = error
-                is_retryable = "503" in str(error) or "UNAVAILABLE" in str(error)
+                message = str(error)
+                is_retryable = any(marker in message for marker in ("503", "UNAVAILABLE", "429", "RESOURCE_EXHAUSTED"))
                 if not is_retryable or attempt == attempts - 1:
                     break
                 await asyncio.sleep(2 * (attempt + 1))
@@ -117,6 +132,7 @@ class VertexGeminiProvider(GeminiProvider):
         # structured output. The agent-specific fallback remains editable
         # and the error stays visible in container logs for follow-up.
         logger.error("Gemini generation failed; using the structured agent fallback: %s", last_error, exc_info=last_error)
+        fallback_used.set(True)
         return schema.model_validate(fallback)
 
 

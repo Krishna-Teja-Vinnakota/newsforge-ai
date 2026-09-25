@@ -25,6 +25,9 @@
 .ai-review-body small { display: block; margin-bottom: 8px; color: var(--muted); font-weight: 700; text-transform: uppercase; }
 .ai-review-body h1, .ai-review-body h2, .ai-review-body h3 { font-size: 15px; }
 .ai-review-images img { width: 100%; min-height: 120px; background: var(--soft); object-fit: cover; }
+.ai-review-fallback { padding: 13px; border: 1px solid #d88c8c; border-radius: 10px; background: #fdecec; }
+.ai-review-fallback > b { display: block; margin-bottom: 5px; }
+.ai-review-fallback p { margin: 0; color: var(--muted); font-size: 13px; line-height: 1.45; }
 .ai-review-accuracy { padding: 13px; border: 1px solid #d7b96d; border-radius: 10px; background: #fff8e7; }
 .ai-review-accuracy > b { display: block; margin-bottom: 5px; }
 .ai-review-accuracy ul { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
