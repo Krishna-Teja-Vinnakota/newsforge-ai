@@ -11,6 +11,8 @@ export type AgentRun = {
   prompt_version: string
   duration_ms: number
   created_at: string
+  // True when the model call failed and a templated fallback was returned instead of model output.
+  used_fallback?: boolean
 }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export type AiLead = {

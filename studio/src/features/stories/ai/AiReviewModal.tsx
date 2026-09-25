@@ -19,6 +19,7 @@ export type AiProposal = {
   content_json?: Record<string, unknown>
   hero_url?: string
   ai_insights?: AiInsights
+  used_fallback?: boolean
 }
 
 type Field = 'title' | 'dek' | 'content_html' | 'hero_url'
@@ -61,6 +62,12 @@ export function AiReviewModal({
   return (
     <StudioDialog title="Review AI proposal" onClose={onClose} className="ai-review-dialog">
       <div className="ai-review">
+        {proposal.used_fallback && (
+          <section className="ai-review-fallback" role="alert">
+            <b>The AI model did not respond.</b>
+            <p>This proposal is a basic template, not model-written copy. Review it carefully or try again.</p>
+          </section>
+        )}
         <p>Nothing changes until you apply the fields you want to keep.</p>
         {changed.length ? (
           changed.map((field) => (

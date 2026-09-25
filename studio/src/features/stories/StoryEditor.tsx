@@ -233,8 +233,9 @@ export function StoryEditor({
         content_json: output.content_json,
         hero_url: output.hero_url,
         ai_insights: output.ai_insights,
+        used_fallback: run.used_fallback,
       })
-      setNotice('AI proposal is ready to review.')
+      setNotice(run.used_fallback ? 'The AI model did not respond, so this is a basic template. Review it before using it.' : 'AI proposal is ready to review.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to generate a draft.')
     } finally {
@@ -286,14 +287,15 @@ export function StoryEditor({
               mode: action === 'body-notes' ? 'notes_to_story' : action === 'body-grammar' ? 'grammar' : 'rewrite',
             })
       const output = run.output as AiProposal
-      setAiProposal(
-        action.startsWith('headline')
+      setAiProposal({
+        ...(action.startsWith('headline')
           ? { title: output.title }
           : action.startsWith('dek')
             ? { dek: output.dek }
-            : { content_html: output.content_html, content_json: output.content_json }
-      )
-      setNotice('AI proposal is ready to review.')
+            : { content_html: output.content_html, content_json: output.content_json }),
+        used_fallback: run.used_fallback,
+      })
+      setNotice(run.used_fallback ? 'The AI model did not respond, so nothing new was written. Try again shortly.' : 'AI proposal is ready to review.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to prepare an AI proposal.')
     } finally {

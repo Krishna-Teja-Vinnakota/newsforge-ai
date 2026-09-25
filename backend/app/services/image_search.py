@@ -1,4 +1,5 @@
 import logging
+import re
 
 import httpx
 
@@ -6,6 +7,23 @@ logger = logging.getLogger("uvicorn.error")
 
 WIKIPEDIA_SEARCH_URL = "https://en.wikipedia.org/w/api.php"
 _REQUEST_TIMEOUT_SECONDS = 4.0
+_STOPWORDS = {
+    "about", "after", "again", "against", "amid", "before", "could", "from", "into", "over", "that", "their",
+    "them", "then", "this", "under", "what", "when", "where", "which", "while", "will", "with", "would", "your",
+}
+
+
+def _significant_words(text: str) -> set[str]:
+    return {word for word in re.findall(r"[a-z0-9]+", text.casefold()) if len(word) >= 4 and word not in _STOPWORDS}
+
+
+def is_relevant_page(headline: str, page_title: str) -> bool:
+    """A search hit is only usable when its title shares a real word with the headline.
+
+    Wikipedia's full-text search happily returns loosely related pages, which would put an
+    unrelated photo on a news story, so weak matches fall back to the generated hero instead.
+    """
+    return bool(_significant_words(headline) & _significant_words(page_title))
 
 
 async def find_topical_image_url(headline: str, topic: str) -> str | None:
@@ -16,7 +34,7 @@ async def find_topical_image_url(headline: str, topic: str) -> str | None:
     match, no usable thumbnail) returns None so the caller can fall back to
     the generated SVG hero instead of breaking story production.
     """
-    query = f"{headline} {topic}".strip()
+    query = headline.strip()
     if not query:
         return None
     try:
@@ -38,7 +56,7 @@ async def find_topical_image_url(headline: str, topic: str) -> str | None:
                 return None
             for hit in hits:
                 title = hit.get("title")
-                if not title:
+                if not title or not is_relevant_page(headline, title):
                     continue
                 image_response = await client.get(
                     WIKIPEDIA_SEARCH_URL,

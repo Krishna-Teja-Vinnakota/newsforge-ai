@@ -274,6 +274,8 @@ class AgentRunResponse(BaseModel):
     prompt_version: str
     duration_ms: int
     created_at: datetime
+    # True when the model call failed and the templated fallback was returned instead.
+    used_fallback: bool = False
 
 
 class AgentRunHistoryResponse(AgentRunResponse):

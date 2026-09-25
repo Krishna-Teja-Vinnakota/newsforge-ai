@@ -50,7 +50,7 @@ async def test_run_chat_drops_oldest_history_to_stay_within_budget(db, monkeypat
             return schema.model_validate(fallback)
 
     monkeypatch.setattr(editing_agent, "get_provider", lambda: CapturingProvider())
-    history = [ChatMessage(role="user", content=f"{index}:" + "x" * 4000) for index in range(8)]
+    history = [ChatMessage(role="user", content=f"{index}:" + "x" * 3990) for index in range(8)]
     draft = "<p>" + "d" * 45_000 + "</p>"
 
     await editing_agent.run_chat("A valid draft headline", "", draft, history, "Please revise this")

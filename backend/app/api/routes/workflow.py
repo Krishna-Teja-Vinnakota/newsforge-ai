@@ -47,13 +47,14 @@ async def persisted_snapshot(thread_id: str, snapshot) -> dict:
 
 
 @router.post("/start")
-async def start_workflow(payload: WorkflowStartRequest, _: dict = Depends(require_roles(*EDITOR_ROLES))) -> dict:
+async def start_workflow(payload: WorkflowStartRequest, user: dict = Depends(require_roles(*EDITOR_ROLES))) -> dict:
     thread_id = str(uuid4())
     lead = payload.lead.model_dump(mode="json")
     await newsroom_workflow.ainvoke(
         {
             "thread_id": thread_id,
             "lead_id": lead["id"],
+            "actor_id": str(user["_id"]),
             "lead_candidate": lead,
             "approval_status": "pending",
             "editorial_status": "draft",

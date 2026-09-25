@@ -35,7 +35,8 @@ async def test_newsroom_feedback_loop(client, db, admin_headers):
 
     telemetry = await client.post("/api/v1/telemetry/simulate", headers=admin_headers, json={"topic": "nation-world", "geo": "Ohio", "sample_size": 1000})
     assert telemetry.status_code == 200
-    assert telemetry.json()["affected_leads_count"] == 6
+    # The lead published above is no longer open for ranking, so the other five are re-ranked.
+    assert telemetry.json()["affected_leads_count"] == 5
     second_selection = await client.post("/api/v1/agents/selection/run", headers=admin_headers, json=selection_payload)
     assert second_selection.status_code == 200
     after = await db.lead_inbox.find_one({"lead_id": target["id"]})
