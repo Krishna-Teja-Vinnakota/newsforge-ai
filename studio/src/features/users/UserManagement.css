@@ -11,8 +11,8 @@
 .user-management h1 {
   margin: 6px 0;
   font:
-    600 43px 'Playfair Display',
-    serif;
+    600 43px 'DM Sans',
+    sans-serif;
 }
 .user-management-header p:not(.eyebrow) {
   margin: 0;

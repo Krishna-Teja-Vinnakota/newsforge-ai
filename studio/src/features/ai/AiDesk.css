@@ -1,15 +1,164 @@
 .ai-desk {
-  max-width: 1100px;
+  max-width: 1180px;
 }
-.ai-desk > header h1 {
-  margin: 6px 0;
-  font:
-    600 43px 'Playfair Display',
-    serif;
+.ai-desk-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+  margin-bottom: 18px;
 }
-.ai-desk > header p:not(.eyebrow) {
-  max-width: 650px;
+.ai-desk-header-copy .eyebrow {
+  margin: 0 0 8px;
+}
+.ai-desk-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.ai-desk-header h1 {
+  margin: 0;
+  font: 700 36px/1.15 'DM Sans', sans-serif;
+  color: var(--ink);
+}
+.pipeline-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 6px 10px;
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--mint) 14%, white);
+  color: #0f766e;
+  font-size: 12px;
+  font-weight: 700;
+}
+html[data-theme='dark'] .pipeline-badge {
+  background: color-mix(in srgb, var(--mint) 18%, transparent);
+  color: var(--mint);
+}
+.pipeline-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: var(--mint);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--mint) 22%, transparent);
+}
+.ai-desk-header-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+}
+.ai-desk-updated {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
   color: var(--muted);
+  font-size: 13px;
+}
+.ai-desk-reset {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  color: var(--ink);
+  padding: 9px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.ai-desk-reset:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+.ai-desk-reset .is-spinning {
+  animation: telemetry-spin 0.7s linear infinite;
+}
+.ai-desk-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.ai-desk-banner-copy {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.ai-desk-banner-dot {
+  width: 8px;
+  height: 8px;
+  flex: none;
+  margin-top: 6px;
+  border-radius: 999px;
+  background: var(--accent);
+}
+.ai-desk-banner p {
+  margin: 0;
+  color: var(--ink);
+  font-size: 14px;
+  line-height: 1.45;
+}
+.desk-sync-pill {
+  flex: none;
+  padding: 7px 10px;
+  border-radius: 2px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 12px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.ai-panel-card {
+  margin-top: 18px;
+  padding: 20px;
+  border: 1px solid var(--line);
+  border-radius: 2px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.ai-panel-tags,
+.ai-leads-title-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.ai-stage-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 5px 10px;
+  border-radius: 2px;
+  background: var(--soft);
+  color: var(--muted);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+.ai-model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 5px 10px;
+  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
+  border-radius: 2px;
+  background: color-mix(in srgb, var(--accent) 8%, white);
+  color: var(--accent);
+  font-size: 12px;
+  font-weight: 700;
+}
+html[data-theme='dark'] .ai-model-pill {
+  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .ai-desk-grid {
   display: grid;
@@ -32,9 +181,7 @@
 .ai-compose h2,
 .ai-runs h2 {
   margin: 0;
-  font:
-    600 25px 'Playfair Display',
-    serif;
+  font: 600 25px 'DM Sans', sans-serif;
 }
 .ai-compose textarea {
   min-height: 170px;
@@ -103,11 +250,22 @@
   color: #c43d54 !important;
 }
 .ai-empty {
-  padding: 28px 20px;
+  padding: 28px 4px 8px;
   color: var(--muted);
 }
 @media (max-width: 800px) {
+  .ai-desk-header,
+  .ai-desk-banner {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .ai-desk-header-actions {
+    justify-content: flex-start;
+  }
   .ai-desk-grid {
     grid-template-columns: 1fr;
+  }
+  .ai-desk-header h1 {
+    font-size: 30px;
   }
 }

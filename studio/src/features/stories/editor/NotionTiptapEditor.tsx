@@ -31,10 +31,12 @@ export function NotionTiptapEditor({
   value,
   onChange,
   editable = true,
+  toolbarEnd,
 }: {
   value: string
   onChange: (html: string) => void
   editable?: boolean
+  toolbarEnd?: ReactNode
 }) {
   const [hovered, setHovered] = useState<{ index: number; top: number } | null>(null)
   const [dragging, setDragging] = useState<number | null>(null)
@@ -223,53 +225,56 @@ export function NotionTiptapEditor({
       {editable && (
         <>
           <header className="nf-editor-toolbar">
-            <div className="nf-history">
-              {button('Undo', <Undo2 />, () => editor.chain().focus().undo().run())}
-              {button('Redo', <Redo2 />, () => editor.chain().focus().redo().run())}
+            <div className="nf-toolbar-tools">
+              <div className="nf-history">
+                {button('Undo', <Undo2 />, () => editor.chain().focus().undo().run())}
+                {button('Redo', <Redo2 />, () => editor.chain().focus().redo().run())}
+              </div>
+              <div className="nf-toolbar-group">
+                {button('Bold', <Bold />, () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
+                {button(
+                  'Italic',
+                  <Italic />,
+                  () => editor.chain().focus().toggleItalic().run(),
+                  editor.isActive('italic')
+                )}
+                {button(
+                  'Heading',
+                  <Heading2 />,
+                  () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
+                  editor.isActive('heading', { level: 2 })
+                )}
+                {button(
+                  'Bullet list',
+                  <List />,
+                  () => editor.chain().focus().toggleBulletList().run(),
+                  editor.isActive('bulletList')
+                )}
+                {button(
+                  'Numbered list',
+                  <ListOrdered />,
+                  () => editor.chain().focus().toggleOrderedList().run(),
+                  editor.isActive('orderedList')
+                )}
+                {button(
+                  'Quote',
+                  <Quote />,
+                  () => editor.chain().focus().toggleBlockquote().run(),
+                  editor.isActive('blockquote')
+                )}
+                {button(
+                  'Code block',
+                  <Code2 />,
+                  () => editor.chain().focus().toggleCodeBlock().run(),
+                  editor.isActive('codeBlock')
+                )}
+              </div>
+              <div className="nf-toolbar-group">
+                {button('Add link', <Link2 />, () => openAsset('link'), editor.isActive('link'))}
+                {button('Insert image', <ImagePlus />, () => openAsset('image'))}
+              </div>
             </div>
-            <div className="nf-toolbar-group">
-              {button('Bold', <Bold />, () => editor.chain().focus().toggleBold().run(), editor.isActive('bold'))}
-              {button(
-                'Italic',
-                <Italic />,
-                () => editor.chain().focus().toggleItalic().run(),
-                editor.isActive('italic')
-              )}
-              {button(
-                'Heading',
-                <Heading2 />,
-                () => editor.chain().focus().toggleHeading({ level: 2 }).run(),
-                editor.isActive('heading', { level: 2 })
-              )}
-              {button(
-                'Bullet list',
-                <List />,
-                () => editor.chain().focus().toggleBulletList().run(),
-                editor.isActive('bulletList')
-              )}
-              {button(
-                'Numbered list',
-                <ListOrdered />,
-                () => editor.chain().focus().toggleOrderedList().run(),
-                editor.isActive('orderedList')
-              )}
-              {button(
-                'Quote',
-                <Quote />,
-                () => editor.chain().focus().toggleBlockquote().run(),
-                editor.isActive('blockquote')
-              )}
-              {button(
-                'Code block',
-                <Code2 />,
-                () => editor.chain().focus().toggleCodeBlock().run(),
-                editor.isActive('codeBlock')
-              )}
-            </div>
-            <div className="nf-toolbar-group">
-              {button('Add link', <Link2 />, () => openAsset('link'), editor.isActive('link'))}
-              {button('Insert image', <ImagePlus />, () => openAsset('image'))}
-            </div>
+            {toolbarEnd && <div className="nf-toolbar-end">{toolbarEnd}</div>}
           </header>
           {selectionActive && (
             <div className="nf-selection-menu">

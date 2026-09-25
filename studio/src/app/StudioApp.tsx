@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { LogOut, Sparkles, Users } from 'lucide-react'
 import { LoginPage } from '../features/auth/LoginPage'
 import { AiDesk } from '../features/ai/AiDesk'
 import { ProfileWorkspace } from '../features/profile/ProfileWorkspace'
@@ -63,14 +64,18 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
           </button>
           {(user.role === 'admin' || user.role === 'editor') && (
             <button className={view === 'ai' ? 'active' : ''} onClick={() => setView('ai')}>
-              <span>✦</span>
+              <span className="nav-icon" aria-hidden>
+                <Sparkles size={16} strokeWidth={2} />
+              </span>
               <b>AI desk</b>
             </button>
           )}
           {user.role === 'admin' && (
             <>
               <button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>
-                <span>◉</span>
+                <span className="nav-icon" aria-hidden>
+                  <Users size={16} strokeWidth={2} />
+                </span>
                 <b>Users</b>
               </button>
               <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
@@ -99,7 +104,9 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
               >
                 {dark ? 'Light mode' : 'Dark mode'}
               </button>
-              <button onClick={signOut}>Sign out</button>
+              <button onClick={signOut}>
+                <LogOut size={14} /> Sign out
+              </button>
             </div>
           )}
         </div>
@@ -109,7 +116,9 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
             <b>{dark ? 'Light mode' : 'Dark mode'}</b>
           </button>
           <button onClick={signOut}>
-            <span>↗</span>
+            <span className="nav-icon" aria-hidden>
+              <LogOut size={16} strokeWidth={2} />
+            </span>
             <b>Sign out</b>
           </button>
         </div>
