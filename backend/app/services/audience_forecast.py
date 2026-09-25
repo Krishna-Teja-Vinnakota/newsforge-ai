@@ -144,6 +144,14 @@ async def forecast_leads(candidates: list[dict[str, Any]], now: datetime | None 
     all_views = [int(item["views_7d"]) for item in outcomes]
     global_median = _median(all_views)
     forecasts: dict[str, AudienceForecast] = {}
+    completed_stories = len(outcomes)
+    next_stage_target = (
+        settings.audience_forecast_min_baseline_stories
+        if completed_stories < settings.audience_forecast_min_baseline_stories
+        else settings.audience_forecast_min_model_stories
+        if completed_stories < settings.audience_forecast_min_model_stories
+        else None
+    )
 
     for candidate in candidates:
         topic = str(candidate.get("topic", "general"))
@@ -183,6 +191,8 @@ async def forecast_leads(candidates: list[dict[str, Any]], now: datetime | None 
                 audience_demand=demand,
                 comparable_stories=len(comparable),
                 telemetry_sample_size=telemetry_sample,
+                completed_stories=completed_stories,
+                next_stage_target=next_stage_target,
                 model_version=MODEL_VERSION,
                 factors=factors + ["More completed seven-day story outcomes are required for a readership forecast."],
             )
@@ -254,6 +264,8 @@ async def forecast_leads(candidates: list[dict[str, Any]], now: datetime | None 
             audience_demand=demand,
             comparable_stories=len(comparable),
             telemetry_sample_size=telemetry_sample,
+            completed_stories=completed_stories,
+            next_stage_target=next_stage_target,
             model_version=MODEL_VERSION,
             factors=factors,
         )

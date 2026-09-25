@@ -42,6 +42,8 @@ class AudienceForecast(BaseModel):
     audience_demand: Literal["low", "moderate", "high"] = "moderate"
     comparable_stories: int = 0
     telemetry_sample_size: int = 0
+    completed_stories: int = 0
+    next_stage_target: int | None = None
     model_version: str
     factors: list[str] = Field(default_factory=list)
 

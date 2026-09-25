@@ -45,6 +45,8 @@ export type AudienceForecast = {
   audience_demand: 'low' | 'moderate' | 'high'
   comparable_stories: number
   telemetry_sample_size: number
+  completed_stories?: number
+  next_stage_target?: number | null
   model_version: string
   factors: string[]
 }

@@ -50,14 +50,18 @@ function compactReaders(value: number) {
 
 function audienceLabel(lead: AiLead) {
   const forecast = lead.audience_forecast
-  if (!forecast) return 'Audience data pending'
+  if (!forecast) return { text: 'Audience data pending', title: '' }
+  const title = `${forecast.confidence} confidence · ${forecast.comparable_stories} comparable stories · ${compactReaders(forecast.telemetry_sample_size)} reader sample`
   if (forecast.lower_bound !== null && forecast.upper_bound !== null) {
-    return `${forecast.horizon_days}-day forecast: ${compactReaders(forecast.lower_bound)}–${compactReaders(forecast.upper_bound)}`
+    return {
+      text: `${forecast.horizon_days}-day forecast: ${compactReaders(forecast.lower_bound)}–${compactReaders(forecast.upper_bound)} · ${forecast.confidence} confidence`,
+      title,
+    }
   }
-  const sample = forecast.telemetry_sample_size
-    ? ` · ${compactReaders(forecast.telemetry_sample_size)} reader sample`
-    : ' · collecting data'
-  return `Audience demand: ${forecast.audience_demand}${sample}`
+  const learning = forecast.next_stage_target
+    ? ` · Learning ${forecast.completed_stories ?? 0}/${forecast.next_stage_target} stories`
+    : ''
+  return { text: `Demand: ${forecast.audience_demand}${learning}`, title }
 }
 
 export function LeadInbox({
@@ -261,7 +265,9 @@ export function LeadInbox({
                     <span>·</span>
                     <span>Source: {sourceLabel(lead)}</span>
                     <span>·</span>
-                    <span className="lead-readership">{audienceLabel(lead)}</span>
+                    <span className="lead-readership" title={audienceLabel(lead).title}>
+                      {audienceLabel(lead).text}
+                    </span>
                   </p>
                   <div className="ai-angle-brief">
                     <strong>AI Angle Brief:</strong> {angle}

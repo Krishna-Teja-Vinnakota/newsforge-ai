@@ -77,7 +77,7 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
                 forecast.lower_bound !== null &&
                 forecast.upper_bound !== null
                   ? `${forecast.horizon_days}-day forecast: ${forecast.predicted_readers.toLocaleString()} readers (${forecast.lower_bound.toLocaleString()}–${forecast.upper_bound.toLocaleString()})`
-                  : `${forecast.audience_demand} demand · forecast collecting data`}
+                  : `${forecast.audience_demand} demand · learning ${forecast.completed_stories ?? 0}/${forecast.next_stage_target ?? '—'} completed stories`}
               </strong>
               <span>
                 {forecast.confidence} confidence · {forecast.comparable_stories} comparable stories ·{' '}
