@@ -1,10 +1,12 @@
-import { useMemo, useState } from 'react'
-import { Plus, Sparkles, Zap } from 'lucide-react'
+import { useEffect, useMemo, useState } from 'react'
+import { Plus, Zap } from 'lucide-react'
 import { api } from '../../shared/api/client'
 
 type Props = {
   onRanked: () => void
   onNotice: (notice: string) => void
+  nextTrendRefreshAt: string | null
+  trendRefreshStatus: string
 }
 
 type ManualLead = { id: string; headline: string; topic: string; geo: string }
@@ -23,32 +25,36 @@ const DEFAULT_WEIGHTS: Weights = {
   local_demand: 25,
 }
 
-const STORAGE_KEY = 'newsforge.studio.selectionWeights'
-
-function loadWeights(): Weights {
-  try {
-    const raw = localStorage.getItem(STORAGE_KEY)
-    if (!raw) return { ...DEFAULT_WEIGHTS }
-    const parsed = JSON.parse(raw) as Partial<Weights>
-    const next = {
-      timeliness: Number(parsed.timeliness),
-      economic_impact: Number(parsed.economic_impact),
-      local_demand: Number(parsed.local_demand),
-    }
-    if (Object.values(next).some((value) => !Number.isFinite(value))) return { ...DEFAULT_WEIGHTS }
-    return next
-  } catch {
-    return { ...DEFAULT_WEIGHTS }
-  }
+function refreshLabel(nextRefreshAt: string | null, status: string) {
+  if (status === 'disabled') return 'Trend refresh disabled'
+  if (!nextRefreshAt) return 'Trend refresh awaiting first run'
+  const minutes = Math.max(0, Math.ceil((new Date(nextRefreshAt).getTime() - Date.now()) / 60000))
+  return minutes === 0 ? 'Next trend refresh due now' : `Next trend refresh in ${minutes} min`
 }
 
-export function LeadRanker({ onRanked, onNotice }: Props) {
+export function LeadRanker({ onRanked, onNotice, nextTrendRefreshAt, trendRefreshStatus }: Props) {
   const [working, setWorking] = useState(false)
   const [showIntake, setShowIntake] = useState(false)
   const [intake, setIntake] = useState('')
   const [showWeights, setShowWeights] = useState(false)
-  const [weights, setWeights] = useState<Weights>(loadWeights)
+  const [weights, setWeights] = useState<Weights>({ ...DEFAULT_WEIGHTS })
   const [draftWeights, setDraftWeights] = useState<Weights>(weights)
+  const [savingWeights, setSavingWeights] = useState(false)
+
+  useEffect(() => {
+    void api
+      .selectionWeights()
+      .then((saved) => {
+        const next = {
+          timeliness: saved.timeliness,
+          economic_impact: saved.economic_impact,
+          local_demand: saved.local_demand,
+        }
+        setWeights(next)
+        setDraftWeights(next)
+      })
+      .catch((error) => onNotice(error instanceof Error ? error.message : 'Unable to load selection weights.'))
+  }, [onNotice])
 
   const total = useMemo(
     () => draftWeights.timeliness + draftWeights.economic_impact + draftWeights.local_demand,
@@ -91,7 +97,7 @@ export function LeadRanker({ onRanked, onNotice }: Props) {
     setShowWeights(true)
   }
 
-  const saveWeights = () => {
+  const saveWeights = async () => {
     if (!validTotal) {
       onNotice('Weights must add up to exactly 100%.')
       return
@@ -100,12 +106,25 @@ export function LeadRanker({ onRanked, onNotice }: Props) {
       onNotice('Each weight must be between 0 and 100.')
       return
     }
-    setWeights(draftWeights)
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(draftWeights))
-    setShowWeights(false)
-    onNotice(
-      `Selection weights saved: Timeliness ${draftWeights.timeliness}%, Economic Impact ${draftWeights.economic_impact}%, Local Demand ${draftWeights.local_demand}%.`
-    )
+    try {
+      setSavingWeights(true)
+      const saved = await api.updateSelectionWeights(draftWeights)
+      const next = {
+        timeliness: saved.timeliness,
+        economic_impact: saved.economic_impact,
+        local_demand: saved.local_demand,
+      }
+      setWeights(next)
+      setDraftWeights(next)
+      setShowWeights(false)
+      onNotice(
+        `Selection weights saved to the newsroom configuration: Timeliness ${next.timeliness}%, Economic Impact ${next.economic_impact}%, Local Demand ${next.local_demand}%. Run the agent to apply them.`
+      )
+    } catch (error) {
+      onNotice(error instanceof Error ? error.message : 'Unable to save selection weights.')
+    } finally {
+      setSavingWeights(false)
+    }
   }
 
   const resetWeights = () => {
@@ -125,10 +144,6 @@ export function LeadRanker({ onRanked, onNotice }: Props) {
       <div className="lead-ranker-top">
         <div className="ai-panel-tags">
           <span className="ai-stage-pill">1. Content selection</span>
-          <span className="ai-model-pill">
-            <Sparkles size={12} />
-            Model: ForgePulse v3.4 (98.4% Confidence)
-          </span>
         </div>
         <button type="button" className="run-agent-btn" onClick={() => void rank()} disabled={working}>
           {working ? (
@@ -195,8 +210,13 @@ export function LeadRanker({ onRanked, onNotice }: Props) {
               <button type="button" onClick={() => setShowWeights(false)}>
                 Cancel
               </button>
-              <button type="button" className="primary" onClick={saveWeights} disabled={!validTotal}>
-                Save weights
+              <button
+                type="button"
+                className="primary"
+                onClick={() => void saveWeights()}
+                disabled={!validTotal || savingWeights}
+              >
+                {savingWeights ? 'Saving…' : 'Save weights'}
               </button>
             </div>
           </div>
@@ -210,7 +230,7 @@ export function LeadRanker({ onRanked, onNotice }: Props) {
         </button>
         <span className="lead-schedule-note">
           <span className="schedule-dot" aria-hidden />
-          Agent auto-run scheduled in 18 mins
+          {refreshLabel(nextTrendRefreshAt, trendRefreshStatus)}
         </span>
       </div>
 

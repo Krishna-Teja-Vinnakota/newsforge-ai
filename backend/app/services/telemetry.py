@@ -19,6 +19,31 @@ def metrics_from_article(article: dict) -> ArticleMetrics:
     )
 
 
+async def update_daily_metrics(article_id: ObjectId, increments: dict[str, int]) -> None:
+    """Store deduplicated engagement in a day bucket for forecast training."""
+    if not any(increments.values()):
+        return
+    day = current_day()
+    now = datetime.now(UTC)
+    selector = {"article_id": article_id, "day": day}
+    try:
+        await get_database().article_daily_metrics.update_one(
+            selector,
+            {
+                "$inc": increments,
+                "$set": {"updated_at": now},
+                "$setOnInsert": {"created_at": now},
+            },
+            upsert=True,
+        )
+    except DuplicateKeyError:
+        # Two distinct readers can create the same day bucket concurrently.
+        await get_database().article_daily_metrics.update_one(
+            selector,
+            {"$inc": increments, "$set": {"updated_at": now}},
+        )
+
+
 async def refresh_article_score(article_id: ObjectId) -> ArticleMetrics:
     article = await get_database().articles.find_one({"_id": article_id}, {"metrics": 1})
     metrics = article.get("metrics", {}) if article else {}
@@ -33,6 +58,7 @@ async def record_view(article_id: ObjectId, actor_key: str) -> ArticleMetrics:
     try:
         await get_database().view_events.insert_one({"article_id": article_id, "actor_key": actor_key, "day": current_day(), "created_at": datetime.now(UTC)})
         await get_database().articles.update_one({"_id": article_id}, {"$inc": {"metrics.views": 1}})
+        await update_daily_metrics(article_id, {"views": 1})
     except DuplicateKeyError:
         pass
     return await refresh_article_score(article_id)
@@ -56,4 +82,11 @@ async def record_feedback(article_id: ObjectId, actor_key: str, action: str) -> 
             except DuplicateKeyError:
                 return await record_feedback(article_id, actor_key, action)
         await get_database().articles.update_one({"_id": article_id}, {"$inc": delta})
+        await update_daily_metrics(
+            article_id,
+            {
+                "likes": delta["metrics.likes"],
+                "dislikes": delta["metrics.dislikes"],
+            },
+        )
     return action, await refresh_article_score(article_id)

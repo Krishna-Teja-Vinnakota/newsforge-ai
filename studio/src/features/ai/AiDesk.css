@@ -37,6 +37,14 @@ html[data-theme='dark'] .pipeline-badge {
   background: color-mix(in srgb, var(--mint) 18%, transparent);
   color: var(--mint);
 }
+.pipeline-badge.is-degraded {
+  background: color-mix(in srgb, #d97706 12%, var(--surface));
+  color: #b45309;
+}
+.pipeline-badge.is-degraded .pipeline-dot {
+  background: #d97706;
+  box-shadow: 0 0 0 4px color-mix(in srgb, #d97706 20%, transparent);
+}
 .pipeline-dot {
   width: 8px;
   height: 8px;
@@ -144,21 +152,6 @@ html[data-theme='dark'] .pipeline-badge {
   font-weight: 700;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-}
-.ai-model-pill {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 5px 10px;
-  border: 1px solid color-mix(in srgb, var(--accent) 35%, var(--line));
-  border-radius: 2px;
-  background: color-mix(in srgb, var(--accent) 8%, white);
-  color: var(--accent);
-  font-size: 12px;
-  font-weight: 700;
-}
-html[data-theme='dark'] .ai-model-pill {
-  background: color-mix(in srgb, var(--accent) 14%, transparent);
 }
 .ai-desk-grid {
   display: grid;

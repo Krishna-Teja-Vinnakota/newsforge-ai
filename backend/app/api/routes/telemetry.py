@@ -3,13 +3,18 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from bson import ObjectId
-from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 
-from app.agents.selection_agent import run_selection
-from app.agents.telemetry_agent import update_ranking_signal
+from app.agents.telemetry_agent import (
+    process_article_engagement,
+    process_public_event,
+    rerank_open_leads,
+    update_ranking_signal,
+)
 from app.api.dependencies import require_roles
 from app.core.database import get_database
+from app.core.settings import settings
 from app.models.telemetry import (
     FeedbackRequest,
     FeedbackResponse,
@@ -17,7 +22,6 @@ from app.models.telemetry import (
     TelemetrySimulationRequest,
     TelemetrySimulationResponse,
 )
-from app.models.agents import LeadCandidate
 from app.models.user import UserRole
 from app.services.telemetry import record_feedback, record_view
 
@@ -50,13 +54,19 @@ def actor_key(visitor_id: str | None, request: Request | None = None) -> str:
 
 
 @router.post("/telemetry/event", status_code=status.HTTP_202_ACCEPTED, tags=["telemetry"])
-async def ingest_public_telemetry_event(payload: PublicTelemetryEvent, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> dict[str, str]:
+async def ingest_public_telemetry_event(
+    payload: PublicTelemetryEvent,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_newsforge_visitor: str | None = Header(default=None),
+) -> dict[str, str]:
     """Accept a rate-limited raw reader event without exposing agent controls."""
     await get_database().telemetry_events.insert_one({
         "topic": payload.topic.lower(), "geo": payload.geo, "event_type": payload.event_type,
         "platform": payload.platform, "visitor_key": actor_key(x_newsforge_visitor, request),
         "duration_sec": payload.duration_sec, "timestamp": datetime.now(UTC), "is_simulation": False,
     })
+    background_tasks.add_task(process_public_event, payload.topic.lower(), payload.geo, payload.event_type)
     return {"status": "accepted"}
 
 
@@ -70,16 +80,29 @@ async def published_article_id_or_404(article_id: str) -> ObjectId:
 
 
 @router.post("/articles/{article_id}/view", response_model=FeedbackResponse, tags=["articles"])
-async def track_view(article_id: str, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
+async def track_view(
+    article_id: str,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_newsforge_visitor: str | None = Header(default=None),
+) -> FeedbackResponse:
     resolved_id = await published_article_id_or_404(article_id)
     metrics = await record_view(resolved_id, actor_key(x_newsforge_visitor, request))
+    background_tasks.add_task(process_article_engagement, article_id)
     return FeedbackResponse(article_id=article_id, viewer_action=None, metrics=metrics)
 
 
 @router.post("/articles/{article_id}/feedback", response_model=FeedbackResponse, tags=["articles"])
-async def submit_feedback(article_id: str, payload: FeedbackRequest, request: Request, x_newsforge_visitor: str | None = Header(default=None)) -> FeedbackResponse:
+async def submit_feedback(
+    article_id: str,
+    payload: FeedbackRequest,
+    request: Request,
+    background_tasks: BackgroundTasks,
+    x_newsforge_visitor: str | None = Header(default=None),
+) -> FeedbackResponse:
     resolved_id = await published_article_id_or_404(article_id)
     viewer_action, metrics = await record_feedback(resolved_id, actor_key(x_newsforge_visitor, request), payload.action)
+    background_tasks.add_task(process_article_engagement, article_id)
     return FeedbackResponse(article_id=article_id, viewer_action=viewer_action, metrics=metrics)
 
 
@@ -130,25 +153,18 @@ async def simulate_telemetry(
             "average_view_duration_seconds": 180,
             "engagement_ratio": 0.9,
         },
+        observation_id=f"simulation:{payload.topic}|{payload.geo}",
+        source="simulation",
     )
-    inbox = get_database().lead_inbox
-    # Re-rank only leads an editor can still act on, bounded like a manual selection run.
-    open_leads = inbox.find({"status": {"$nin": ["rejected", "published"]}}).sort([("current_rank", 1), ("updated_at", -1)]).limit(25)
-    existing_docs = [document async for document in open_leads]
-    candidates = [
-        LeadCandidate(
-            id=document["lead_id"],
-            headline=document["headline"],
-            topic=document.get("topic", "general"),
-            geo=document.get("geo", "global"),
-        )
-        for document in existing_docs
-    ]
-    selection_output = await run_selection(candidates)
     return TelemetrySimulationResponse(
         updated_signal=updated_signal,
-        affected_leads_count=len(selection_output.ranked),
+        affected_leads_count=await rerank_open_leads(),
     )
+
+
+@router.get("/telemetry/config", tags=["telemetry"])
+async def telemetry_config(_: dict = Depends(require_roles(*EDITOR_ROLES))) -> dict[str, float | bool]:
+    return {"max_weight_delta": settings.agent_max_weight_delta, "automatic_processing": True}
 
 
 @router.get("/telemetry/signals", response_model=list[RankingSignal], tags=["telemetry"])

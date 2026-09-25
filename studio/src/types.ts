@@ -55,6 +55,7 @@ export interface RankedLead {
   priority_score: number
   base_score: number
   learned_weight_delta: number
+  selection_weight_adjustment: number
   final_score: number
   previous_rank: number | null
   current_rank: number | null
@@ -68,6 +69,21 @@ export interface RankedLead {
   suggested_angle: string
   suggested_publish_window: string
   reasoning: string
+  audience_forecast: AudienceForecast | null
+}
+
+export interface AudienceForecast {
+  status: 'insufficient_data' | 'historical_baseline' | 'calibrated_model'
+  horizon_days: number
+  predicted_readers: number | null
+  lower_bound: number | null
+  upper_bound: number | null
+  confidence: 'low' | 'medium' | 'high'
+  audience_demand: 'low' | 'moderate' | 'high'
+  comparable_stories: number
+  telemetry_sample_size: number
+  model_version: string
+  factors: string[]
 }
 
 export interface TrendEvidence {

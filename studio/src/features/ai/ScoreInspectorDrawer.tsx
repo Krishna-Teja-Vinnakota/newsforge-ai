@@ -4,10 +4,12 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
   if (!lead) return null
   const base = lead.base_score ?? 0
   const delta = lead.learned_weight_delta ?? 0
+  const editorWeight = lead.selection_weight_adjustment ?? 0
   const trend = lead.trend_boost ?? 0
   const coverage = lead.coverage_adjustment ?? 0
-  const final = lead.final_score ?? lead.priority_score ?? base + delta + trend + coverage
+  const final = lead.final_score ?? lead.priority_score ?? base + editorWeight + delta + trend + coverage
   const sources = Array.from(new Set((lead.trend_evidence ?? []).map((evidence) => evidence.source)))
+  const forecast = lead.audience_forecast
   return (
     <div className="score-drawer-backdrop" role="presentation" onMouseDown={onClose}>
       <aside
@@ -40,6 +42,13 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
             </dd>
           </div>
           <div>
+            <dt>Editorial weight adjustment</dt>
+            <dd className={editorWeight >= 0 ? 'positive' : 'negative'}>
+              {editorWeight >= 0 ? '+' : ''}
+              {editorWeight.toFixed(2)}
+            </dd>
+          </div>
+          <div>
             <dt>Trend boost</dt>
             <dd className={trend > 0 ? 'positive' : ''}>+{trend.toFixed(2)}</dd>
           </div>
@@ -54,10 +63,34 @@ export function ScoreInspectorDrawer({ lead, onClose }: { lead: AiLead | null; o
             <dt>Final calculation</dt>
             <dd>{final.toFixed(2)}</dd>
             <code>
-              final_score = {base.toFixed(2)} + {delta.toFixed(2)} + {trend.toFixed(2)} + {coverage.toFixed(2)}
+              final_score = {base.toFixed(2)} + {editorWeight.toFixed(2)} + {delta.toFixed(2)} +{' '}
+              {trend.toFixed(2)} + {coverage.toFixed(2)}
             </code>
           </div>
         </dl>
+        {forecast && (
+          <section className="audience-forecast">
+            <p>Audience forecast</p>
+            <div className="forecast-summary">
+              <strong>
+                {forecast.predicted_readers !== null &&
+                forecast.lower_bound !== null &&
+                forecast.upper_bound !== null
+                  ? `${forecast.horizon_days}-day forecast: ${forecast.predicted_readers.toLocaleString()} readers (${forecast.lower_bound.toLocaleString()}–${forecast.upper_bound.toLocaleString()})`
+                  : `${forecast.audience_demand} demand · forecast collecting data`}
+              </strong>
+              <span>
+                {forecast.confidence} confidence · {forecast.comparable_stories} comparable stories ·{' '}
+                {forecast.telemetry_sample_size.toLocaleString()} reader sample
+              </span>
+            </div>
+            <ul>
+              {forecast.factors.map((factor) => (
+                <li key={factor}>{factor}</li>
+              ))}
+            </ul>
+          </section>
+        )}
         {sources.length > 0 && (
           <section className="trend-sources">
             <p>Matched trend sources</p>

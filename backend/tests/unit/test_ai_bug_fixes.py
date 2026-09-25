@@ -205,6 +205,7 @@ async def _published_article(db, admin_user) -> str:
     # The real app creates these unique indexes at startup; the in-memory test database does not.
     for name in ("view_events", "feedback_events"):
         await db[name].create_index([("article_id", 1), ("actor_key", 1), ("day", 1)], unique=True)
+    await db.article_daily_metrics.create_index([("article_id", 1), ("day", 1)], unique=True)
     now = datetime.now(UTC)
     inserted = await db.articles.insert_one(
         {
@@ -222,6 +223,8 @@ async def test_repeated_views_without_a_visitor_header_count_once(client, db, ad
     for _ in range(3):
         response = await client.post(f"/api/v1/articles/{article_id}/view")
     assert response.json()["metrics"]["views"] == 1
+    daily = await db.article_daily_metrics.find_one({"article_id": ObjectId(article_id)})
+    assert daily["views"] == 1
 
 
 @pytest.mark.asyncio
@@ -230,6 +233,8 @@ async def test_repeated_likes_without_a_visitor_header_count_once(client, db, ad
     for _ in range(3):
         response = await client.post(f"/api/v1/articles/{article_id}/feedback", json={"action": "like"})
     assert response.json()["metrics"]["likes"] == 1
+    daily = await db.article_daily_metrics.find_one({"article_id": ObjectId(article_id)})
+    assert daily["likes"] == 1
 
 
 @pytest.mark.asyncio
@@ -238,6 +243,85 @@ async def test_distinct_visitor_headers_still_count_separately(client, db, admin
     for visitor in ("a", "b", "c"):
         response = await client.post(f"/api/v1/articles/{article_id}/view", headers={"X-NewsForge-Visitor": visitor})
     assert response.json()["metrics"]["views"] == 3
+
+
+@pytest.mark.asyncio
+async def test_real_reader_feedback_updates_signal_and_reranks_open_leads(client, db, admin_user):
+    article_id = await _published_article(db, admin_user)
+    await db.lead_inbox.insert_one(
+        {
+            "lead_id": "local-follow-up",
+            "headline": "Local follow-up story for engaged readers",
+            "topic": "local",
+            "geo": "global",
+            "status": "pending",
+        }
+    )
+    await client.post(
+        f"/api/v1/articles/{article_id}/view", headers={"X-NewsForge-Visitor": "reader-one"}
+    )
+    response = await client.post(
+        f"/api/v1/articles/{article_id}/feedback",
+        headers={"X-NewsForge-Visitor": "reader-one"},
+        json={"action": "like"},
+    )
+    assert response.status_code == 200
+    signal = await db.ranking_signals.find_one({"_id": "local|global"})
+    lead = await db.lead_inbox.find_one({"lead_id": "local-follow-up"})
+    assert signal["weight_delta"] > 0
+    assert lead["learned_weight_delta"] == signal["weight_delta"]
+    assert lead["current_rank"] == 1
+
+
+@pytest.mark.asyncio
+async def test_recalculate_is_idempotent_and_reranks_leads(client, db, admin_headers, admin_user):
+    article_id = await _published_article(db, admin_user)
+    await db.articles.update_one(
+        {"_id": ObjectId(article_id)},
+        {"$set": {"metrics.views": 100, "metrics.likes": 10, "metrics.engagement_ratio": 1.0}},
+    )
+    await db.lead_inbox.insert_one(
+        {
+            "lead_id": "recalc-lead",
+            "headline": "Local story informed by audience demand",
+            "topic": "local",
+            "geo": "global",
+            "status": "pending",
+        }
+    )
+    endpoint = "/api/v1/agents/telemetry/recalculate"
+    first = await client.post(endpoint, headers=admin_headers, json={"article_id": article_id})
+    before = await db.ranking_signals.find_one({"_id": "local|global"})
+    second = await client.post(endpoint, headers=admin_headers, json={"article_id": article_id})
+    after = await db.ranking_signals.find_one({"_id": "local|global"})
+    assert first.status_code == second.status_code == 200
+    assert first.json()["output"]["affected_leads_count"] == 1
+    assert before["weight_delta"] == after["weight_delta"]
+    assert before["sample_size"] == after["sample_size"] == 100
+    assert await db.ranking_signal_contributions.count_documents({"_id": f"article:{article_id}"}) == 1
+
+
+@pytest.mark.asyncio
+async def test_generic_public_events_feed_ranking_and_rerank(client, db):
+    await db.lead_inbox.insert_one(
+        {
+            "lead_id": "event-lead",
+            "headline": "Ohio technology readers show demand",
+            "topic": "technology",
+            "geo": "Ohio",
+            "status": "pending",
+        }
+    )
+    response = await client.post(
+        "/api/v1/telemetry/event",
+        headers={"X-NewsForge-Visitor": "event-reader"},
+        json={"topic": "technology", "geo": "Ohio", "event_type": "save", "platform": "web"},
+    )
+    assert response.status_code == 202
+    signal = await db.ranking_signals.find_one({"_id": "technology|Ohio"})
+    lead = await db.lead_inbox.find_one({"lead_id": "event-lead"})
+    assert signal["weight_delta"] > 0
+    assert lead["learned_weight_delta"] == signal["weight_delta"]
 
 
 @pytest.mark.asyncio

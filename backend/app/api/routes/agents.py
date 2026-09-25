@@ -10,7 +10,7 @@ from app.agents.telemetry_agent import PROMPT_VERSION as TELEMETRY_PROMPT_VERSIO
 from app.api.dependencies import require_roles
 from app.core.settings import settings
 from app.core.features import require_ai_feature
-from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, BodyRunRequest, ChatRunRequest, DekRunRequest, HeadlineRunRequest, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, TagSuggestionRunRequest, TelemetryRunRequest
+from app.models.agents import AgentName, AgentRunHistoryListResponse, AgentRunHistoryResponse, AgentRunResponse, BodyRunRequest, ChatRunRequest, DekRunRequest, HeadlineRunRequest, LeadDecisionRequest, LeadInboxItem, LeadInput, ProductionRunRequest, SelectionRunRequest, SelectionWeights, SelectionWeightsResponse, TagSuggestionRunRequest, TelemetryRunRequest
 from app.models.agents import AgentRunStatus
 from app.models.telemetry import TelemetrySimulationRequest, TelemetrySimulationResponse
 from app.models.article import ArticleStatus
@@ -21,6 +21,7 @@ from app.services.agent_runs import record_run
 from app.services.articles import unique_slug
 from app.services.content import sanitize_html
 from app.services.image_prompt import source_hash
+from app.services.selection_weights import load_selection_weights, save_selection_weights
 from app.services.trends.leads import promote_trend_leads
 from app.services.trends.refresh import get_trend_status, refresh_trends
 
@@ -159,6 +160,21 @@ async def selection_run(payload: SelectionRunRequest, _: dict = Depends(require_
     selection_payload = SelectionRunRequest(leads=leads)
     run = await record_run(AgentName.SELECTION, settings.gemini_selection_model or "mock", SELECTION_PROMPT_VERSION, selection_payload.model_dump(mode="json"), lambda: run_selection(leads))
     return run
+
+
+@router.get("/selection/weights", response_model=SelectionWeightsResponse)
+async def get_selection_weights(
+    _: dict = Depends(require_roles(*EDITOR_ROLES)),
+) -> SelectionWeightsResponse:
+    return await load_selection_weights()
+
+
+@router.put("/selection/weights", response_model=SelectionWeightsResponse)
+async def update_selection_weights(
+    payload: SelectionWeights,
+    current_user: dict = Depends(require_roles(*EDITOR_ROLES)),
+) -> SelectionWeightsResponse:
+    return await save_selection_weights(payload, str(current_user["_id"]))
 
 
 @router.post("/produce", response_model=AgentRunResponse)

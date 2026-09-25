@@ -9,10 +9,12 @@ from app.agents.prompts.selection import PROMPT_VERSION, build_selection_prompt
 from app.agents.provider import get_provider
 from app.core.database import get_database
 from app.core.settings import settings
-from app.models.agents import LeadInboxItem, LeadInput, RankedLead, SelectionResult
+from app.models.agents import LeadInboxItem, LeadInput, RankedLead, SelectionResult, SelectionWeights
 from app.models.trends import TrendSignal
 from app.services.agent_metrics import record_agent_metrics
 from app.services.articles import load_recent_published_article_metadata
+from app.services.audience_forecast import forecast_leads
+from app.services.selection_weights import DEFAULT_SELECTION_WEIGHTS, load_selection_weights
 from app.services.trends.scoring import (
     SCORING_VERSION,
     count_recent_coverage,
@@ -44,6 +46,35 @@ TOPIC_PRIORITY = {
     "culture": 0.03,
 }
 
+ECONOMIC_TOPIC_SCORE = {
+    "business": 1.0,
+    "technology": 0.85,
+    "nation-world": 0.70,
+    "climate": 0.65,
+    "science": 0.60,
+    "health": 0.55,
+    "local": 0.50,
+    "sports": 0.40,
+    "culture": 0.35,
+}
+ECONOMIC_TERMS = {
+    "business",
+    "economy",
+    "economic",
+    "jobs",
+    "investment",
+    "market",
+    "company",
+    "industry",
+    "manufacturing",
+    "funding",
+    "budget",
+    "tax",
+    "trade",
+    "revenue",
+}
+WEIGHT_ADJUSTMENT_SCALE = 0.25
+
 
 def baseline_editorial_score(candidate: dict[str, Any]) -> float:
     """Score a new lead before audience learning is available."""
@@ -67,6 +98,54 @@ def baseline_editorial_score(candidate: dict[str, Any]) -> float:
     return _clamp_priority_score(score)
 
 
+def editorial_criteria(candidate: dict[str, Any], now: datetime) -> dict[str, float]:
+    """Return stable 0..1 signals for the three editor-controlled priorities."""
+    published_at = candidate.get("published_at")
+    if isinstance(published_at, datetime):
+        age_hours = max(0.0, (now - _as_utc(published_at)).total_seconds() / 3600)
+        if age_hours <= 6:
+            timeliness = 1.0
+        elif age_hours <= 24:
+            timeliness = 0.85
+        elif age_hours <= 72:
+            timeliness = 0.65
+        elif age_hours <= 168:
+            timeliness = 0.4
+        else:
+            timeliness = 0.2
+    elif candidate.get("origin") == "trend_feed":
+        timeliness = 0.9
+    elif candidate.get("source_url"):
+        timeliness = 0.6
+    else:
+        timeliness = 0.5
+
+    topic = str(candidate.get("topic", "general")).casefold()
+    headline = str(candidate.get("headline", "")).casefold()
+    economic_impact = ECONOMIC_TOPIC_SCORE.get(topic, 0.45)
+    if any(term in headline.split() for term in ECONOMIC_TERMS):
+        economic_impact = min(1.0, economic_impact + 0.15)
+
+    geo = str(candidate.get("geo", "global")).strip().casefold()
+    broad_geos = {"", "global", "national", "us", "usa", "united states"}
+    local_demand = 0.25 if geo in broad_geos else 0.85
+    if topic == "local":
+        local_demand = max(local_demand, 0.95)
+
+    return {
+        "timeliness": round(timeliness, 4),
+        "economic_impact": round(economic_impact, 4),
+        "local_demand": round(local_demand, 4),
+    }
+
+
+def selection_weight_adjustment(criteria: dict[str, float], weights: SelectionWeights) -> float:
+    """Adjust the legacy base score relative to the default mix, preserving default behavior."""
+    configured = sum(criteria[key] * getattr(weights, key) for key in criteria) / 100
+    baseline = sum(criteria[key] * getattr(DEFAULT_SELECTION_WEIGHTS, key) for key in criteria) / 100
+    return round((configured - baseline) * WEIGHT_ADJUSTMENT_SCALE, 4)
+
+
 def _clamp_priority_score(score: float) -> float:
     return round(min(1.0, max(0.0, score)), 4)
 
@@ -88,6 +167,7 @@ def _candidate_from_document(document: dict[str, Any]) -> dict[str, Any]:
         "source_context": document.get("source_context"),
         "published_at": document.get("published_at"),
         "status": document.get("status", "pending"),
+        "origin": document.get("origin", "manual"),
         "base_score": (
             float(document["base_score"])
             if document.get("base_score") is not None
@@ -134,6 +214,7 @@ def lead_to_item(document: dict[str, Any]) -> LeadInboxItem:
         reasoning=document.get("reasoning"),
         base_score=float(document.get("base_score", 0.0) or 0.0),
         learned_weight_delta=float(document.get("learned_weight_delta", 0.0) or 0.0),
+        selection_weight_adjustment=float(document.get("selection_weight_adjustment", 0.0) or 0.0),
         final_score=float(document.get("final_score", 0.0) or 0.0),
         previous_rank=document.get("previous_rank"),
         current_rank=document.get("current_rank"),
@@ -145,6 +226,7 @@ def lead_to_item(document: dict[str, Any]) -> LeadInboxItem:
         why_now=document.get("why_now"),
         origin=document.get("origin", "manual"),
         score_audit=document.get("score_audit") or {},
+        audience_forecast=document.get("audience_forecast"),
     )
 
 
@@ -162,6 +244,7 @@ async def persist_ranked_leads(ranked: Iterable[RankedLead], candidates: dict[st
             "published_at": candidate.get("published_at"),
             "base_score": lead.base_score,
             "learned_weight_delta": lead.learned_weight_delta,
+            "selection_weight_adjustment": lead.selection_weight_adjustment,
             "final_score": lead.final_score,
             "previous_rank": lead.previous_rank,
             "current_rank": lead.current_rank,
@@ -171,6 +254,7 @@ async def persist_ranked_leads(ranked: Iterable[RankedLead], candidates: dict[st
             "suggested_publish_window": lead.suggested_publish_window,
             "reasoning": lead.reasoning,
             "score_audit": lead.score_audit,
+            "audience_forecast": lead.audience_forecast.model_dump(mode="json") if lead.audience_forecast else None,
             "updated_at": updated_at,
         }
         if "trend_boost" in lead.score_audit:
@@ -209,6 +293,9 @@ def _legacy_audit(candidate: dict[str, Any], current_rank: int, rank_shift: int)
     return {
         "base_score": candidate["base_score"],
         "learned_delta": candidate["learned_weight_delta"],
+        "selection_weights": candidate["selection_weights"],
+        "selection_criteria": candidate["selection_criteria"],
+        "selection_weight_adjustment": candidate["selection_weight_adjustment"],
         "final_score": candidate["final_score"],
         "previous_rank": candidate["previous_rank"],
         "current_rank": current_rank,
@@ -217,7 +304,11 @@ def _legacy_audit(candidate: dict[str, Any], current_rank: int, rank_shift: int)
 
 
 def _deterministic_reason(candidate: dict[str, Any], trend_score: dict[str, Any] | None, shadow: bool) -> str:
-    reason = f"Base editorial score {candidate['base_score']:.2f} with telemetry delta {candidate['learned_weight_delta']:+.2f}."
+    reason = (
+        f"Base editorial score {candidate['base_score']:.2f}, editor-weight adjustment "
+        f"{candidate['selection_weight_adjustment']:+.2f}, and telemetry delta "
+        f"{candidate['learned_weight_delta']:+.2f}."
+    )
     if trend_score and not shadow:
         reason += (
             f" Cached trend evidence adds {trend_score['trend_boost']:+.2f} and coverage adds "
@@ -226,12 +317,14 @@ def _deterministic_reason(candidate: dict[str, Any], trend_score: dict[str, Any]
     return reason
 
 
-async def run_selection(leads: list[LeadInput]) -> SelectionResult:
+async def run_selection(leads: list[LeadInput], *, generate_guidance: bool = True) -> SelectionResult:
     """Rank candidates deterministically from cached signals; never fetch externally."""
     started = perf_counter()
     now = datetime.now(UTC)
     candidates = await _load_candidates(leads)
     signal_deltas = await _load_signal_deltas()
+    configured_weights = await load_selection_weights()
+    weight_values = SelectionWeights.model_validate(configured_weights.model_dump())
     trend_mode = settings.trends_refresh_enabled or settings.trends_scoring_enabled
     shadow_mode = settings.trends_refresh_enabled and not settings.trends_scoring_enabled
     trend_signals: list[TrendSignal] = []
@@ -248,8 +341,17 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
         candidate["learned_weight_delta"] = signal_deltas.get(
             f"{candidate['topic']}|{candidate['geo']}", signal_deltas.get(f"{candidate['topic']}|global", 0.0)
         )
+        candidate["selection_criteria"] = editorial_criteria(candidate, now)
+        candidate["selection_weights"] = weight_values.model_dump()
+        candidate["selection_weight_adjustment"] = selection_weight_adjustment(
+            candidate["selection_criteria"], weight_values
+        )
         candidate["trend_score"] = None
-        base_final = candidate["base_score"] + candidate["learned_weight_delta"]
+        base_final = (
+            candidate["base_score"]
+            + candidate["selection_weight_adjustment"]
+            + candidate["learned_weight_delta"]
+        )
         if trend_mode:
             stories = count_recent_coverage(candidate, recent_articles)
             candidate["trend_score"] = score_trend_adjustment(
@@ -264,6 +366,8 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
             if settings.trends_scoring_enabled:
                 base_final += candidate["trend_score"]["trend_boost"] + candidate["trend_score"]["coverage_adjustment"]
         candidate["final_score"] = round(base_final, 4)
+
+    audience_forecasts = await forecast_leads(candidates, now)
 
     sorted_candidates = sorted(
         candidates,
@@ -308,6 +412,7 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
                 priority_score=_clamp_priority_score(candidate["final_score"]),
                 base_score=candidate["base_score"],
                 learned_weight_delta=candidate["learned_weight_delta"],
+                selection_weight_adjustment=candidate["selection_weight_adjustment"],
                 final_score=candidate["final_score"],
                 previous_rank=previous_rank,
                 current_rank=current_rank,
@@ -320,6 +425,7 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
                 suggested_publish_window="Next audience peak",
                 reasoning=_deterministic_reason(candidate, trend_score, shadow_mode),
                 score_audit=audit,
+                audience_forecast=audience_forecasts.get(candidate["lead_id"]),
             )
         )
 
@@ -340,6 +446,8 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
             "headline": candidate["headline"],
             "topic": candidate["topic"],
             "geo": candidate["geo"],
+            "editorial_priorities": candidate["selection_weights"],
+            "criterion_signals": candidate["selection_criteria"],
             "trend_evidence": [
                 {"source": evidence["source"], "label": str(evidence["label"])[:180]}
                 for evidence in ranked_by_id[candidate["lead_id"]].trend_evidence[:5]
@@ -348,11 +456,15 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
         for candidate in candidates
     ]
     prompt = build_selection_prompt(prompt_candidates)
-    generated = await get_provider().generate_json(
-        model=settings.gemini_selection_model,
-        prompt=prompt,
-        schema=SelectionGuidanceResponse,
-        fallback=fallback,
+    generated = (
+        await get_provider().generate_json(
+            model=settings.gemini_selection_model,
+            prompt=prompt,
+            schema=SelectionGuidanceResponse,
+            fallback=fallback,
+        )
+        if generate_guidance
+        else SelectionGuidanceResponse.model_validate(fallback)
     )
     generated_by_id = {item.lead_id: item for item in generated.guidance}
     ranked = [
@@ -370,11 +482,12 @@ async def run_selection(leads: list[LeadInput]) -> SelectionResult:
     ]
     await persist_ranked_leads(ranked, {item["lead_id"]: item for item in candidates})
     result = SelectionResult(ranked=ranked)
-    await record_agent_metrics(
-        "selection",
-        settings.gemini_selection_model or "mock",
-        prompt,
-        result.model_dump(mode="json"),
-        int((perf_counter() - started) * 1000),
-    )
+    if generate_guidance:
+        await record_agent_metrics(
+            "selection",
+            settings.gemini_selection_model or "mock",
+            prompt,
+            result.model_dump(mode="json"),
+            int((perf_counter() - started) * 1000),
+        )
     return result

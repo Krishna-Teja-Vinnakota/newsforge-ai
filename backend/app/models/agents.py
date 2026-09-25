@@ -2,7 +2,7 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 
 
 class AgentName(StrEnum):
@@ -32,6 +32,20 @@ class LeadInput(BaseModel):
     published_at: datetime | None = None
 
 
+class AudienceForecast(BaseModel):
+    status: Literal["insufficient_data", "historical_baseline", "calibrated_model"]
+    horizon_days: int = 7
+    predicted_readers: int | None = None
+    lower_bound: int | None = None
+    upper_bound: int | None = None
+    confidence: Literal["low", "medium", "high"] = "low"
+    audience_demand: Literal["low", "moderate", "high"] = "moderate"
+    comparable_stories: int = 0
+    telemetry_sample_size: int = 0
+    model_version: str
+    factors: list[str] = Field(default_factory=list)
+
+
 class LeadCandidate(LeadInput):
     """A lead selected from the persisted editorial inbox for ranking."""
 
@@ -41,6 +55,7 @@ class Lead(LeadInput):
 
     base_score: float = 0.0
     learned_weight_delta: float = 0.0
+    selection_weight_adjustment: float = 0.0
     final_score: float = 0.0
     previous_rank: int | None = None
     current_rank: int | None = None
@@ -51,6 +66,7 @@ class Lead(LeadInput):
     suggested_format: str = "standard"
     why_now: str | None = None
     origin: str = "manual"
+    audience_forecast: AudienceForecast | None = None
 
 
 class LeadDecisionRequest(BaseModel):
@@ -71,6 +87,7 @@ class RankedLead(BaseModel):
     priority_score: float = Field(ge=0, le=1)
     base_score: float = 0.0
     learned_weight_delta: float = 0.0
+    selection_weight_adjustment: float = 0.0
     final_score: float = 0.0
     previous_rank: int | None = None
     current_rank: int | None = None
@@ -84,6 +101,7 @@ class RankedLead(BaseModel):
     suggested_publish_window: str
     reasoning: str
     score_audit: dict[str, Any] = Field(default_factory=dict)
+    audience_forecast: AudienceForecast | None = None
 
 
 class SelectionResult(BaseModel):
@@ -92,6 +110,23 @@ class SelectionResult(BaseModel):
 
 class SelectionRunRequest(BaseModel):
     leads: list[LeadInput] = Field(default_factory=list, max_length=25)
+
+
+class SelectionWeights(BaseModel):
+    timeliness: int = Field(default=40, ge=0, le=100)
+    economic_impact: int = Field(default=35, ge=0, le=100)
+    local_demand: int = Field(default=25, ge=0, le=100)
+
+    @model_validator(mode="after")
+    def weights_total_one_hundred(self):
+        if self.timeliness + self.economic_impact + self.local_demand != 100:
+            raise ValueError("Selection weights must add up to exactly 100")
+        return self
+
+
+class SelectionWeightsResponse(SelectionWeights):
+    updated_at: datetime | None = None
+    updated_by: str | None = None
 
 
 class ProductionRunRequest(BaseModel):
@@ -331,9 +366,15 @@ class TelemetryResult(BaseModel):
     topic: str
     engagement_score: float = Field(ge=0, le=1)
     popularity_rank_hint: float = Field(ge=0)
-    weight_delta: float = Field(ge=-0.15, le=0.15)
+    # Runtime configuration applies the actual cap; this wider schema permits deployments
+    # to tune AGENT_MAX_WEIGHT_DELTA without changing the API model.
+    weight_delta: float = Field(ge=-1, le=1)
     insight: str
     seo_recommendations: list[str]
+    affected_leads_count: int = 0
+    topic_geo_key: str | None = None
+    signal_confidence: float | None = None
+    signal_sample_size: int | None = None
 
 
 class AgentRunResponse(BaseModel):
