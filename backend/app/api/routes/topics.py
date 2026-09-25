@@ -8,7 +8,7 @@ from pymongo import ReturnDocument
 from app.api.dependencies import require_roles
 from app.core.database import get_database
 from app.models.topic import TopicCreateRequest, TopicResponse, TopicUpdateRequest
-from app.models.user import UserRole
+from app.models.user import EDITORIAL_ROLES
 
 router = APIRouter(prefix="/topics")
 
@@ -29,7 +29,7 @@ async def list_tags() -> list[str]:
 
 
 @router.post("", response_model=TopicResponse, status_code=status.HTTP_201_CREATED)
-async def create_topic(payload: TopicCreateRequest, _: dict = Depends(require_roles(UserRole.ADMIN))) -> TopicResponse:
+async def create_topic(payload: TopicCreateRequest, _: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> TopicResponse:
     document = {"name": payload.name.strip(), "slug": payload.slug.strip().lower(), "is_active": True, "created_at": datetime.now(UTC)}
     try:
         result = await get_database().topics.insert_one(document)
@@ -40,7 +40,7 @@ async def create_topic(payload: TopicCreateRequest, _: dict = Depends(require_ro
 
 
 @router.patch("/{topic_id}", response_model=TopicResponse)
-async def update_topic(topic_id: str, payload: TopicUpdateRequest, _: dict = Depends(require_roles(UserRole.ADMIN))) -> TopicResponse:
+async def update_topic(topic_id: str, payload: TopicUpdateRequest, _: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> TopicResponse:
     if not ObjectId.is_valid(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found")
     changes = payload.model_dump(exclude_unset=True)
@@ -53,7 +53,7 @@ async def update_topic(topic_id: str, payload: TopicUpdateRequest, _: dict = Dep
 
 
 @router.delete("/{topic_id}", status_code=status.HTTP_204_NO_CONTENT)
-async def delete_topic(topic_id: str, _: dict = Depends(require_roles(UserRole.ADMIN))):
+async def delete_topic(topic_id: str, _: dict = Depends(require_roles(*EDITORIAL_ROLES))):
     if not ObjectId.is_valid(topic_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Topic not found")
     result = await get_database().topics.delete_one({"_id": ObjectId(topic_id)})

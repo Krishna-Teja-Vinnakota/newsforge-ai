@@ -1,6 +1,8 @@
 import json
 
-PROMPT_VERSION = "production_v1.3"
+from app.agents.prompts.image import IMAGE_BRIEF_KEY_GUIDANCE
+
+PROMPT_VERSION = "production_v1.4"
 
 
 def build_production_prompt(
@@ -31,7 +33,8 @@ def build_production_prompt(
         "names, quotes, figures, sources, or attribution. Return one JSON object matching the "
         "required JSON schema with these exact keys: "
         "title, dek, content_html, content_json, reporter_brief, social_posts, push_notification, "
-        "and provenance. Do not use headline or summary as substitute keys. "
+        "provenance, and image_brief. Do not use headline or summary as substitute keys. "
+        f"{IMAGE_BRIEF_KEY_GUIDANCE} "
         f"headline={headline!r}; topic={topic!r}; context={context!r}; "
         f"retrieved_sources={json.dumps(sources, default=str)}; platforms={target_platforms!r}."
     )

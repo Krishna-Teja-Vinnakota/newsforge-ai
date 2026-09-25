@@ -62,28 +62,24 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
             <span>▤</span>
             <b>Stories</b>
           </button>
-          {(user.role === 'admin' || user.role === 'editor') && (
-            <button className={view === 'ai' ? 'active' : ''} onClick={() => setView('ai')}>
+          <button className={view === 'ai' ? 'active' : ''} onClick={() => setView('ai')}>
+            <span className="nav-icon" aria-hidden>
+              <Sparkles size={16} strokeWidth={2} />
+            </span>
+            <b>AI desk</b>
+          </button>
+          {user.role === 'admin' && (
+            <button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>
               <span className="nav-icon" aria-hidden>
-                <Sparkles size={16} strokeWidth={2} />
+                <Users size={16} strokeWidth={2} />
               </span>
-              <b>AI desk</b>
+              <b>Users</b>
             </button>
           )}
-          {user.role === 'admin' && (
-            <>
-              <button className={view === 'users' ? 'active' : ''} onClick={() => setView('users')}>
-                <span className="nav-icon" aria-hidden>
-                  <Users size={16} strokeWidth={2} />
-                </span>
-                <b>Users</b>
-              </button>
-              <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
-                <span>⚙</span>
-                <b>Settings</b>
-              </button>
-            </>
-          )}
+          <button className={view === 'settings' ? 'active' : ''} onClick={() => setView('settings')}>
+            <span>⚙</span>
+            <b>Settings</b>
+          </button>
         </nav>
         <div className="sidebar-user">
           <button className="user-profile-link" onClick={openProfile}>
@@ -127,7 +123,7 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
         {view === 'stories' && (
           <StoriesWorkspace user={user} openArticleId={openArticleId} onOpenArticleHandled={() => setOpenArticleId(null)} />
         )}{' '}
-        {view === 'ai' && (user.role === 'admin' || user.role === 'editor') && (
+        {view === 'ai' && (
           <AiDesk
             onDraftCreated={(articleId) => {
               setOpenArticleId(articleId)
@@ -136,7 +132,7 @@ function StudioShell({ user, onUserUpdated }: { user: User; onUserUpdated: (user
           />
         )}{' '}
         {view === 'users' && user.role === 'admin' && <UserManagementWorkspace currentUser={user} />}{' '}
-        {view === 'settings' && user.role === 'admin' && <SettingsWorkspace />}{' '}
+        {view === 'settings' && <SettingsWorkspace />}{' '}
         {view === 'profile' && <ProfileWorkspace user={user} onUpdated={onUserUpdated} />}
       </section>
     </main>

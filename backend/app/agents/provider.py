@@ -1,8 +1,10 @@
 import asyncio
+import io
 import json
 import logging
 from abc import ABC, abstractmethod
 from contextvars import ContextVar
+from dataclasses import dataclass
 from typing import Any, TypeVar
 
 from pydantic import BaseModel
@@ -19,11 +21,76 @@ logger = logging.getLogger("uvicorn.error")
 fallback_used: ContextVar[bool] = ContextVar("fallback_used", default=False)
 
 
+@dataclass(frozen=True)
+class GeneratedImage:
+    data: bytes
+    content_type: str
+
+
+class ImageGenerationError(Exception):
+    """An image could not be produced. `user_message` is safe to show to an editor."""
+
+    status_code = 502
+    user_message = "Image generation failed. Please try again."
+
+    def __init__(self, user_message: str | None = None):
+        self.user_message = user_message or type(self).user_message
+        super().__init__(self.user_message)
+
+
+class ImageBlockedError(ImageGenerationError):
+    status_code = 422
+    user_message = "The image model declined to create an image for this story. Try another hero image or upload one."
+
+
+class ImageEmptyError(ImageGenerationError):
+    status_code = 502
+    user_message = "The image model returned no image. Please try again."
+
+
+class ImageTimeoutError(ImageGenerationError):
+    status_code = 504
+    user_message = "Image generation timed out. Please try again."
+
+
+class ImageQuotaError(ImageGenerationError):
+    status_code = 429
+    user_message = (
+        "Gemini image-generation quota is unavailable or exhausted. "
+        "Check billing and image-model rate limits in Google AI Studio, or try again later."
+    )
+
+
+def _genai_client():
+    from google import genai
+
+    # The Google Gen AI SDK supports two mutually exclusive modes: Gemini
+    # Developer API with an API key, or Vertex AI with a project/location and
+    # Application Default Credentials. Do not pass project/location alongside
+    # an API key.
+    if settings.gemini_api_key:
+        client_options: dict[str, Any] = {"api_key": settings.gemini_api_key}
+    else:
+        client_options = {
+            "vertexai": True,
+            "project": settings.google_cloud_project,
+            "location": settings.google_cloud_location,
+        }
+    return genai.Client(**client_options)
+
+
+def _has_credentials() -> bool:
+    return bool(settings.gemini_api_key or settings.google_cloud_project)
+
+
 class GeminiProvider(ABC):
     name: str
 
     @abstractmethod
     async def generate_json(self, *, model: str, prompt: str, schema: type[Schema], fallback: dict[str, Any]) -> Schema: ...
+
+    async def generate_image(self, *, model: str, prompt: str, aspect_ratio: str = "16:9") -> GeneratedImage:
+        raise ImageGenerationError("This provider cannot generate images.")
 
 
 class MockGeminiProvider(GeminiProvider):
@@ -33,31 +100,38 @@ class MockGeminiProvider(GeminiProvider):
         fallback_used.set(True)
         return schema.model_validate(fallback)
 
+    async def generate_image(self, *, model: str, prompt: str, aspect_ratio: str = "16:9") -> GeneratedImage:
+        """Return a neutral placeholder so the full flow works without a model."""
+        fallback_used.set(True)
+
+        def render() -> bytes:
+            from PIL import Image, ImageDraw
+
+            width, height = 1280, 720
+            image = Image.new("RGB", (width, height))
+            draw = ImageDraw.Draw(image)
+            for y in range(height):
+                ratio = y / height
+                draw.line([(0, y), (width, y)], fill=(int(21 + 40 * ratio), int(35 + 70 * ratio), int(59 + 130 * ratio)))
+            draw.ellipse((width - 520, -180, width + 80, 420), fill=(60, 110, 190))
+            output = io.BytesIO()
+            image.save(output, format="PNG")
+            return output.getvalue()
+
+        return GeneratedImage(data=await asyncio.to_thread(render), content_type="image/png")
+
 
 class VertexGeminiProvider(GeminiProvider):
     name = "gemini-enterprise"
 
     async def generate_json(self, *, model: str, prompt: str, schema: type[Schema], fallback: dict[str, Any]) -> Schema:
-        if not settings.google_cloud_project or not model:
-            raise RuntimeError("Gemini Enterprise requires GOOGLE_CLOUD_PROJECT and an enabled model ID")
+        if not _has_credentials() or not model:
+            raise RuntimeError("Gemini Enterprise requires GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT, and an enabled model ID")
 
         def request() -> Schema:
-            from google import genai
             from google.genai import types
 
-            # The Google Gen AI SDK supports two mutually exclusive modes:
-            # Gemini Developer API with an API key, or Vertex AI with a
-            # project/location and Application Default Credentials. Do not pass
-            # project/location alongside an API key.
-            if settings.gemini_api_key:
-                client_options: dict[str, Any] = {"api_key": settings.gemini_api_key}
-            else:
-                client_options = {
-                    "vertexai": True,
-                    "project": settings.google_cloud_project,
-                    "location": settings.google_cloud_location,
-                }
-            client = genai.Client(**client_options)
+            client = _genai_client()
             # Gemini structured output does not accept JSON Schema's
             # `additionalProperties`. ProductionResult deliberately contains
             # flexible Tiptap/reporter-brief objects, so send it in JSON mode
@@ -134,6 +208,56 @@ class VertexGeminiProvider(GeminiProvider):
         logger.error("Gemini generation failed; using the structured agent fallback: %s", last_error, exc_info=last_error)
         fallback_used.set(True)
         return schema.model_validate(fallback)
+
+    async def generate_image(self, *, model: str, prompt: str, aspect_ratio: str = "16:9") -> GeneratedImage:
+        if not _has_credentials() or not model:
+            raise RuntimeError("Image generation requires GEMINI_API_KEY or GOOGLE_CLOUD_PROJECT, and GEMINI_IMAGE_MODEL")
+
+        def request() -> GeneratedImage:
+            from google.genai import types
+
+            client = _genai_client()
+            response = client.models.generate_content(
+                model=model,
+                contents=prompt,
+                config=types.GenerateContentConfig(
+                    response_modalities=["IMAGE"],
+                    image_config=types.ImageConfig(aspect_ratio=aspect_ratio),
+                ),
+            )
+            candidate = (getattr(response, "candidates", None) or [None])[0]
+            parts = getattr(getattr(candidate, "content", None), "parts", None) or []
+            for part in parts:
+                inline = getattr(part, "inline_data", None)
+                if inline is not None and getattr(inline, "data", None):
+                    return GeneratedImage(data=inline.data, content_type=getattr(inline, "mime_type", None) or "image/png")
+            feedback = getattr(response, "prompt_feedback", None)
+            finish_reason = str(getattr(candidate, "finish_reason", "") or "")
+            if getattr(feedback, "block_reason", None) or any(marker in finish_reason for marker in ("SAFETY", "PROHIBITED", "BLOCKLIST", "IMAGE_OTHER", "RECITATION")):
+                raise ImageBlockedError()
+            raise ImageEmptyError()
+
+        # Safety filters are left at the provider defaults on purpose. Only a
+        # brief 503 is retried; quota and blocked responses fail immediately
+        # so an editor is never charged for repeated identical requests.
+        attempts = 2
+        for attempt in range(attempts):
+            try:
+                return await asyncio.wait_for(asyncio.to_thread(request), timeout=settings.image_timeout_seconds)
+            except ImageGenerationError:
+                raise
+            except (TimeoutError, asyncio.TimeoutError) as error:
+                raise ImageTimeoutError() from error
+            except Exception as error:  # noqa: BLE001 - mapped to a controlled error below
+                message = str(error)
+                if any(marker in message for marker in ("429", "RESOURCE_EXHAUSTED")):
+                    raise ImageQuotaError() from error
+                if any(marker in message for marker in ("503", "UNAVAILABLE")) and attempt < attempts - 1:
+                    await asyncio.sleep(2)
+                    continue
+                logger.error("Gemini image generation failed: %s", error, exc_info=error)
+                raise ImageGenerationError() from error
+        raise ImageEmptyError()
 
 
 def get_provider() -> GeminiProvider:

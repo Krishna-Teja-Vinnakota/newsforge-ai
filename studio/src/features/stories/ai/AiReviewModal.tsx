@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
+import { RefreshCw } from 'lucide-react'
 import { StudioDialog } from '../../../StudioDialog'
+import type { HeroProposal } from '../../../shared/api/client'
 import './AiReviewModal.css'
 
 export type AiInsights = {
@@ -18,12 +20,14 @@ export type AiProposal = {
   content_html?: string
   content_json?: Record<string, unknown>
   hero_url?: string
+  // Present when the proposed hero is an uploaded/generated media item, so the URL and media id apply together.
+  hero?: HeroProposal
   ai_insights?: AiInsights
   used_fallback?: boolean
 }
 
 type Field = 'title' | 'dek' | 'content_html' | 'hero_url'
-type CurrentStory = Pick<Required<AiProposal>, Field>
+type CurrentStory = { title: string; dek: string; content_html: string; hero_url: string }
 
 const labels: Record<Field, string> = {
   title: 'Headline',
@@ -43,11 +47,15 @@ export function AiReviewModal({
   current,
   onApply,
   onClose,
+  onRegenerate,
+  busy = false,
 }: {
   proposal: AiProposal
   current: CurrentStory
   onApply: (fields: Field[], insights?: AiInsights) => void
   onClose: () => void
+  onRegenerate?: () => void
+  busy?: boolean
 }) {
   const changed = useMemo(
     () => (Object.keys(labels) as Field[]).filter((field) => proposal[field] !== undefined && proposal[field] !== current[field]),
@@ -64,8 +72,12 @@ export function AiReviewModal({
       <div className="ai-review">
         {proposal.used_fallback && (
           <section className="ai-review-fallback" role="alert">
-            <b>The AI model did not respond.</b>
-            <p>This proposal is a basic template, not model-written copy. Review it carefully or try again.</p>
+            <b>{proposal.hero ? 'This is a placeholder image.' : 'The AI model did not respond.'}</b>
+            <p>
+              {proposal.hero
+                ? 'The image model is not connected, so this is not a generated illustration.'
+                : 'This proposal is a basic template, not model-written copy. Review it carefully or try again.'}
+            </p>
           </section>
         )}
         <p>Nothing changes until you apply the fields you want to keep.</p>
@@ -89,8 +101,15 @@ export function AiReviewModal({
                 </div>
               ) : field === 'hero_url' ? (
                 <div className="ai-review-images">
-                  <img src={current.hero_url} alt="Current hero" />
-                  <img src={proposal.hero_url ?? ''} alt="Proposed hero" />
+                  {current.hero_url ? (
+                    <img src={current.hero_url} alt="Current hero" />
+                  ) : (
+                    <div className="ai-review-no-image">No hero image yet</div>
+                  )}
+                  <div className="ai-review-proposed-image">
+                    {proposal.hero_url && <img src={proposal.hero_url} alt={proposal.hero?.alt_text || 'Proposed hero'} />}
+                    {proposal.hero?.ai_generated && <span className="ai-review-badge">AI-generated</span>}
+                  </div>
                 </div>
               ) : (
                 <div className="ai-review-copy">
@@ -112,6 +131,11 @@ export function AiReviewModal({
         )}
         <footer className="dialog-actions">
           <button type="button" onClick={onClose}>Keep current draft</button>
+          {onRegenerate && proposal.hero && (
+            <button type="button" onClick={onRegenerate} disabled={busy}>
+              <RefreshCw size={14} /> {busy ? 'Generating…' : 'Regenerate image'}
+            </button>
+          )}
           <button type="button" className="dialog-primary" onClick={() => onApply(selected, proposal.ai_insights)} disabled={!selected.length && !proposal.ai_insights}>
             Apply selected
           </button>

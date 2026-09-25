@@ -7,14 +7,9 @@ from pydantic import BaseModel, EmailStr, Field
 class UserRole(StrEnum):
     ADMIN = "admin"
     EDITOR = "editor"
-    REPORTER = "reporter"
-    AUDIENCE = "audience"
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
-    password: str = Field(min_length=10, max_length=72)
-    display_name: str = Field(min_length=2, max_length=80)
+EDITORIAL_ROLES = (UserRole.ADMIN, UserRole.EDITOR)
 
 
 class LoginRequest(BaseModel):
@@ -32,7 +27,7 @@ class AdminUserCreateRequest(BaseModel):
     email: EmailStr
     password: str = Field(min_length=10, max_length=72)
     display_name: str = Field(min_length=2, max_length=80)
-    role: UserRole = UserRole.REPORTER
+    role: UserRole = UserRole.EDITOR
 
 
 class AdminUserUpdateRequest(BaseModel):

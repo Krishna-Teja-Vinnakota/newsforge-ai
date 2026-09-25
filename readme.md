@@ -130,10 +130,10 @@ newsforge-ai/
 
 ### NewsForge Studio
 
-- Authenticate as `admin`, `editor`, `reporter`, or `audience`.
+- Authenticate as `admin` or `editor`.
 - Create and edit stories with a Tiptap rich-text editor.
 - Upload hero and inline media to MinIO/S3.
-- Submit drafts for review; editors and admins can approve, publish, unpublish, schedule, or archive according to role.
+- Submit drafts for review; editors and admins can approve, publish, unpublish, and manage the full editorial workflow.
 - Manage topics, tags, profiles, and—administrators only—users.
 - Run and inspect the AI desk: lead inbox, scoring, production output, telemetry, and agent traces.
 
@@ -152,7 +152,7 @@ All API routes are prefixed with `/api/v1`. Interactive endpoint documentation i
 | Area | Example endpoints |
 | --- | --- |
 | Health | `GET /health` |
-| Authentication | `POST /auth/register`, `POST /auth/login`, `GET /auth/me` |
+| Authentication | `POST /auth/login`, `GET /auth/me` |
 | Public articles | `GET /articles`, `GET /articles/trending`, `GET /articles/{slug}` |
 | Feedback and telemetry | `POST /articles/{id}/view`, `POST /articles/{id}/feedback`, `GET /telemetry/signals` |
 | CMS | `POST /cms/articles`, `PATCH /cms/articles/{id}`, `POST /cms/articles/{id}/submit-review`, `POST /cms/articles/{id}/publish` |

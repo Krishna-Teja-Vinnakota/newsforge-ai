@@ -6,18 +6,17 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from app.api.dependencies import get_current_user, require_roles
 from app.core.database import get_database
 from app.models.article import ArticleCreateRequest, ArticleListResponse, ArticleResponse, ArticleStatus, ArticleUpdateRequest, PublishRequest, WorkflowTransitionRequest
-from app.models.user import UserRole
+from app.models.user import EDITORIAL_ROLES
 from app.services.articles import add_workflow_event, article_response, get_article_or_404, unique_slug
 from app.services.content import sanitize_html
 from app.services.retrieval import index_published_article
 
 router = APIRouter(prefix="/cms/articles")
-EDITOR_ROLES = (UserRole.ADMIN, UserRole.EDITOR)
-AUTHORING_ROLES = (UserRole.ADMIN, UserRole.EDITOR, UserRole.REPORTER)
+AUTHORING_ROLES = EDITORIAL_ROLES
 
 
 def can_edit(article: dict, user: dict) -> bool:
-    return user["role"] in {UserRole.ADMIN, UserRole.EDITOR} or article["creator_id"] == user["_id"]
+    return user["role"] in EDITORIAL_ROLES
 
 
 @router.post("", response_model=ArticleResponse, status_code=status.HTTP_201_CREATED)
@@ -40,7 +39,7 @@ async def create_article(payload: ArticleCreateRequest, current_user: dict = Dep
 async def list_my_articles(
     page: int = Query(default=1, ge=1), page_size: int = Query(default=20, ge=1, le=50), current_user: dict = Depends(get_current_user)
 ) -> ArticleListResponse:
-    criteria = {} if current_user["role"] in {UserRole.ADMIN, UserRole.EDITOR} else {"creator_id": current_user["_id"]}
+    criteria = {}
     total = await get_database().articles.count_documents(criteria)
     cursor = get_database().articles.find(criteria).sort("updated_at", -1).skip((page - 1) * page_size).limit(page_size)
     return ArticleListResponse(items=[await article_response(item) async for item in cursor], page=page, page_size=page_size, total=total)
@@ -75,6 +74,12 @@ async def update_article(article_id: str, payload: ArticleUpdateRequest, current
     if "hero_media_id" in changes:
         media_id = changes["hero_media_id"]
         changes["hero_media_id"] = ObjectId(media_id) if media_id and ObjectId.is_valid(media_id) else None
+        if changes["hero_media_id"] is not None:
+            # An AI image is only a proposal until a story actually uses it; stop it expiring.
+            await get_database().media.update_one(
+                {"_id": changes["hero_media_id"], "status": "pending"},
+                {"$set": {"status": "applied"}, "$unset": {"expires_at": ""}},
+            )
     changes["updated_at"] = datetime.now(UTC)
     await get_database().articles.update_one({"_id": article["_id"]}, {"$set": changes})
     article.update(changes)
@@ -82,7 +87,7 @@ async def update_article(article_id: str, payload: ArticleUpdateRequest, current
 
 
 @router.post("/{article_id}/submit-review", response_model=ArticleResponse)
-async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
+async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if not can_edit(article, current_user) or article["status"] not in {ArticleStatus.DRAFT, ArticleStatus.UNPUBLISHED}:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only a draft or unpublished story can move to under_review")
@@ -94,7 +99,7 @@ async def submit_for_review(article_id: str, payload: WorkflowTransitionRequest,
 
 
 @router.post("/{article_id}/publish", response_model=ArticleResponse)
-async def publish_article(article_id: str, payload: PublishRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
+async def publish_article(article_id: str, payload: PublishRequest, current_user: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if article["status"] != ArticleStatus.APPROVED:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only an approved article can be published")
@@ -116,7 +121,7 @@ async def publish_article(article_id: str, payload: PublishRequest, current_user
 
 
 @router.post("/{article_id}/approve", response_model=ArticleResponse)
-async def approve_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
+async def approve_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if article["status"] != ArticleStatus.UNDER_REVIEW:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Only stories under review can be approved")
@@ -129,7 +134,7 @@ async def approve_article(article_id: str, payload: WorkflowTransitionRequest, c
 
 
 @router.post("/{article_id}/reject", response_model=ArticleResponse)
-async def reject_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
+async def reject_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if article["status"] != ArticleStatus.UNDER_REVIEW:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only stories in review can be rejected")
@@ -142,7 +147,7 @@ async def reject_article(article_id: str, payload: WorkflowTransitionRequest, cu
 
 
 @router.post("/{article_id}/unpublish", response_model=ArticleResponse)
-async def unpublish_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITOR_ROLES))) -> ArticleResponse:
+async def unpublish_article(article_id: str, payload: WorkflowTransitionRequest, current_user: dict = Depends(require_roles(*EDITORIAL_ROLES))) -> ArticleResponse:
     article = await get_article_or_404(article_id)
     if article["status"] != ArticleStatus.PUBLISHED:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Only a published article can be unpublished")

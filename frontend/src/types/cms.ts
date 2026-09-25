@@ -1,4 +1,4 @@
-export type UserRole = 'admin' | 'editor' | 'reporter' | 'audience'
+export type UserRole = 'admin' | 'editor'
 
 export type AuthUser = {
   id: string

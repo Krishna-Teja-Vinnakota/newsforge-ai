@@ -30,7 +30,6 @@ export function StoriesWorkspace({
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
   const [total, setTotal] = useState(0)
-  const canAuthor = user.role !== 'audience'
   const load = () => {
     void api
       .myArticles(page, pageSize)
@@ -116,13 +115,11 @@ export function StoriesWorkspace({
       </header>
       {notice && <p className="stories-notice">{notice}</p>}
       <div className="stories-scroll">
-        {canAuthor && (
-          <button type="button" className="notion-new-card" onClick={() => setEditor('new')}>
-            <span>＋</span>
-            <b>New story</b>
-            <small>Start with a blank page</small>
-          </button>
-        )}
+        <button type="button" className="notion-new-card" onClick={() => setEditor('new')}>
+          <span>＋</span>
+          <b>New story</b>
+          <small>Start with a blank page</small>
+        </button>
         {visible.map((article) => (
           <button type="button" className="cms-story-card" key={article.id} onClick={() => setEditor(article)}>
             <div className="story-card-hero">

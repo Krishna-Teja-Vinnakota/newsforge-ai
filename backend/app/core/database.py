@@ -23,6 +23,13 @@ async def connect_to_mongo(retries: int = 5, retry_delay_seconds: float = 2) -> 
             await _client.admin.command("ping")
             await database.users.create_index("email", unique=True)
             await database.media.create_index("object_key", unique=True)
+            # Makes AI image generation idempotent per (user, story, click); ordinary uploads have no key.
+            await database.media.create_index(
+                [("uploader_id", 1), ("article_id", 1), ("idempotency_key", 1)],
+                unique=True,
+                partialFilterExpression={"idempotency_key": {"$exists": True}},
+            )
+            await database.media.create_index([("status", 1), ("expires_at", 1)])
             await database.articles.create_index("slug", unique=True)
             await database.articles.create_index([("status", 1), ("published_at", -1)])
             await database.workflow_events.create_index([("article_id", 1), ("created_at", -1)])

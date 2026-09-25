@@ -23,11 +23,9 @@ Phase 0 locks the implementation contracts for NewsForge before backend and AI w
 | Role | Permissions |
 | --- | --- |
 | `admin` | Manage users, roles, all content, agent settings, and platform configuration. |
-| `editor` | Review, edit, approve, schedule, publish, and unpublish articles. |
-| `reporter` | Create and edit assigned drafts; submit work for review. |
-| `audience` | Read public content and submit feedback. |
+| `editor` | All editorial, AI, taxonomy, and platform capabilities except user management. |
 
-All protected APIs require a verified JWT. Backend authorization is role- and ownership-aware; hiding a UI button is never an authorization mechanism.
+All protected APIs require a verified JWT. User management is enforced as admin-only by the backend; hiding the Studio section is not the authorization mechanism.
 
 ## Article lifecycle
 
@@ -131,7 +129,7 @@ agent_runs.created_at
 | Area | Endpoint | Purpose |
 | --- | --- | --- |
 | Health | `GET /api/v1/health` | Service/readiness check. |
-| Auth | `POST /api/v1/auth/register`, `POST /api/v1/auth/login`, `GET /api/v1/auth/me` | Identity lifecycle. |
+| Auth | `POST /api/v1/auth/login`, `GET /api/v1/auth/me` | Identity lifecycle; administrators create accounts. |
 | Articles | `GET /api/v1/articles`, `GET /api/v1/articles/{slug}` | Public feed and reader. |
 | Feedback | `POST /api/v1/articles/{id}/feedback` | Accept `like` or `dislike`; return fresh metrics. |
 | CMS | `POST /api/v1/cms/articles`, `PATCH /api/v1/cms/articles/{id}`, `POST /api/v1/cms/articles/{id}/publish` | Editorial workflow. |

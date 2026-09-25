@@ -27,7 +27,6 @@ export function StudioPage() {
   const [previewOpen, setPreviewOpen] = useState(false)
   const [message, setMessage] = useState('')
 
-  const isEditor = user?.role === 'admin' || user?.role === 'editor'
   const draftPayload = useMemo(
     () => ({
       title,
@@ -247,7 +246,7 @@ export function StudioPage() {
             >
               Send to review <Send size={16} />
             </button>
-            {isEditor && article?.status === 'approved' && (
+            {article?.status === 'approved' && (
               <button className="read-button" type="button" onClick={() => void publish()}>
                 Publish <ArrowUpRight size={16} />
               </button>

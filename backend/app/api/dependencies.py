@@ -21,6 +21,10 @@ async def get_current_user(credentials: Annotated[HTTPAuthorizationCredentials |
     user = await get_database().users.find_one({"_id": ObjectId(user_id), "is_active": True})
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account is unavailable")
+    try:
+        UserRole(user.get("role"))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User account is unavailable") from exc
     return user
 
 

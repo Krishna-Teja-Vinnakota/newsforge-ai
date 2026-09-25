@@ -45,16 +45,20 @@ async def article_response(article: dict) -> ArticleResponse:
     # Demo/imported stories can provide a public image URL directly, while CMS
     # uploads use a MinIO media reference. Support both sources.
     hero_url = article.get("hero_url")
+    hero_media: dict = {}
     if article.get("hero_media_id"):
         media = await get_database().media.find_one({"_id": article["hero_media_id"]})
         hero_url = media.get("url") if media else hero_url
+        hero_media = media or {}
     creator = await author_response(article["creator_id"])
     if creator is None:
         raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail="Article creator is unavailable")
     return ArticleResponse(
         id=str(article["_id"]), slug=article["slug"], status=article["status"], title=article["title"], dek=article["dek"],
         content_json=article["content_json"], content_html=article["content_html"], topic=article["topic"], tags=article["tags"],
-        hero_media_id=str(article["hero_media_id"]) if article.get("hero_media_id") else None, hero_url=hero_url, ai_insights=article.get("ai_insights"), creator=creator, editor=await author_response(article.get("editor_id")), created_at=article["created_at"],
+        hero_media_id=str(article["hero_media_id"]) if article.get("hero_media_id") else None, hero_url=hero_url,
+        hero_ai_generated=bool(hero_media.get("ai_generated")), hero_alt_text=hero_media.get("alt_text"), hero_disclosure=hero_media.get("disclosure"),
+        ai_insights=article.get("ai_insights"), creator=creator, editor=await author_response(article.get("editor_id")), created_at=article["created_at"],
         updated_at=article["updated_at"], published_at=article.get("published_at"), scheduled_for=article.get("scheduled_for"),
         metrics=article.get("metrics", {}),
     )

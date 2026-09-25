@@ -20,6 +20,7 @@ from app.models.trends import TrendLeadPromotionResponse, TrendRefreshResponse
 from app.services.agent_runs import record_run
 from app.services.articles import unique_slug
 from app.services.content import sanitize_html
+from app.services.image_prompt import source_hash
 from app.services.trends.leads import promote_trend_leads
 from app.services.trends.refresh import get_trend_status, refresh_trends
 
@@ -130,6 +131,9 @@ async def retry_agent_run(run_id: str, _: dict = Depends(require_roles(*EDITOR_R
         return await tag_suggestion_run(TagSuggestionRunRequest.model_validate(payload), _)
     if agent is AgentName.CHAT:
         return await chat_run(ChatRunRequest.model_validate(payload), _)
+    if agent is AgentName.IMAGE:
+        # Replaying an image run would generate and store another image, so it is never retried generically.
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Image runs cannot be retried from history. Generate a new image from the story editor.")
     request = TelemetryRunRequest.model_validate(payload)
     return await telemetry_run(request, _)
 
@@ -174,11 +178,13 @@ async def production_run(payload: ProductionRunRequest, current_user: dict = Dep
         {"id": source_id, "slug": source_slug}
         for source_id, source_slug in zip(output.get("retrieved_source_ids", []), output.get("retrieved_source_slugs", []), strict=False)
     ]
+    image_brief = output.get("image_brief")
     ai_insights = {
         "reporter_brief": output.get("reporter_brief", {}),
         "social_posts": output.get("social_posts", []),
         "push_notification": output.get("push_notification", ""),
         "provenance": output.get("provenance", []),
+        "image_brief": {**image_brief, "source_hash": source_hash(title, output.get("dek", ""), content_html)} if image_brief else None,
         "model_name": settings.gemini_production_model or "mock",
         "generated_at": now,
         "used_fallback": run.used_fallback,

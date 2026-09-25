@@ -12,7 +12,7 @@ import {
   Sparkles,
   Tag,
 } from 'lucide-react'
-import { api, type ChatMessage } from '../../shared/api/client'
+import { api, type ChatMessage, type HeroProposal } from '../../shared/api/client'
 import { NotionTiptapEditor } from './editor/NotionTiptapEditor'
 import { AiReviewModal, type AiInsights, type AiProposal } from './ai/AiReviewModal'
 import { HeadlinePicker } from './ai/HeadlinePicker'
@@ -63,6 +63,10 @@ const toForm = (story: Article): Form => ({
   hero_media_id: story.hero_media_id,
   ai_insights: story.ai_insights ?? null,
 })
+// One key per click: a network retry of the same click replays the same image instead of paying for another.
+const newRequestKey = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`
+const IMAGE_STATUSES = ['draft', 'rejected', 'unpublished']
 const hasBody = (html: string) => html.replace(/<[^>]+>/g, '').trim().length > 40
 const topicLabel = (topics: Topic[], slug: string) =>
   topics.find((topic) => topic.slug === slug)?.name ?? slug.replace(/-/g, ' ')
@@ -101,9 +105,10 @@ export function StoryEditor({
   const [headlineOptions, setHeadlineOptions] = useState<string[] | null>(null)
   const [chatSending, setChatSending] = useState(false)
   const [chatError, setChatError] = useState('')
+  const [imageService, setImageService] = useState<boolean | null>(null)
   const status = article?.status ?? 'draft'
-  const isReviewer = user.role === 'admin' || user.role === 'editor'
-  const editable = user.role !== 'audience' && status !== 'published'
+  const isReviewer = true
+  const editable = status !== 'published'
   const stageIndex = STORY_STAGES.findIndex((item) => item.id === stage)
   const chatReady = {
     saved: Boolean(article),
@@ -119,6 +124,19 @@ export function StoryEditor({
     }),
     [form.title, form.dek, form.content_html, status]
   )
+
+  // Null while unknown: the server still enforces this, the flag only lets us explain a disabled button.
+  useEffect(() => {
+    if (!editable) return
+    let active = true
+    api
+      .health()
+      .then((health) => active && setImageService(Boolean(health.features.image_generation)))
+      .catch(() => undefined)
+    return () => {
+      active = false
+    }
+  }, [editable])
 
   useEffect(() => {
     if (!editable) {
@@ -205,6 +223,38 @@ export function StoryEditor({
       setNotice('Hero image added.')
     } catch (error) {
       setNotice(error instanceof Error ? error.message : 'Unable to upload the image.')
+    } finally {
+      setWorking(false)
+    }
+  }
+  const imageBlockedReason = !article
+    ? 'Save this story first to generate an image.'
+    : !IMAGE_STATUSES.includes(status)
+      ? 'Images can only be generated while the story is a draft, rejected or unpublished.'
+      : form.title.trim().length < 5
+        ? 'Add a headline first so the image matches the story.'
+        : imageService === false
+          ? 'AI image generation is not configured on this server.'
+          : ''
+  const generateHeroImage = async () => {
+    if (!article || imageBlockedReason) {
+      setNotice(imageBlockedReason || 'Save this story first to generate an image.')
+      return
+    }
+    try {
+      setWorking(true)
+      setNotice('Generating a hero image… this can take up to a minute.')
+      // Send what is on screen, not the last saved copy, so the image matches the current story.
+      const run = await api.generateHeroImage(
+        { article_id: article.id, title: form.title, dek: form.dek, content_html: form.content_html },
+        newRequestKey()
+      )
+      const hero = (run.output as { hero?: HeroProposal }).hero
+      if (!hero) throw new Error('No image was returned.')
+      setAiProposal({ hero, hero_url: hero.url, used_fallback: run.used_fallback })
+      setNotice(run.used_fallback ? 'The image model is not connected, so this is a placeholder.' : 'AI image is ready to review.')
+    } catch (error) {
+      setNotice(error instanceof Error ? error.message : 'Unable to generate an image.')
     } finally {
       setWorking(false)
     }
@@ -829,6 +879,21 @@ export function StoryEditor({
                   placeholder="Or paste a public image URL"
                 />
               )}
+              {editable && (
+                <div className="hero-ai-row">
+                  <button
+                    type="button"
+                    className="hero-ai-button"
+                    onClick={() => void generateHeroImage()}
+                    disabled={working || Boolean(imageBlockedReason)}
+                    title={imageBlockedReason || undefined}
+                  >
+                    <Sparkles size={15} />
+                    {form.hero_url ? 'Replace with AI image' : 'Generate AI image'}
+                  </button>
+                  {imageBlockedReason && <small>{imageBlockedReason}</small>}
+                </div>
+              )}
             </div>
 
             <aside className="wizard-draft-aside">
@@ -899,6 +964,14 @@ export function StoryEditor({
                       disabled={working || form.tags.length >= 10}
                     >
                       Suggest tags
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => void generateHeroImage()}
+                      disabled={working || Boolean(imageBlockedReason)}
+                      title={imageBlockedReason || undefined}
+                    >
+                      Generate hero image
                     </button>
                   </div>
                 </div>
@@ -1080,6 +1153,8 @@ export function StoryEditor({
               fields.forEach((field) => {
                 const value = aiProposal[field]
                 if (value !== undefined) next[field] = value
+                // URL and media id are one value: the API prefers the media id, so a stale one would hide the new hero.
+                if (field === 'hero_url') next.hero_media_id = aiProposal.hero?.media_id ?? null
                 if (field === 'content_html' && aiProposal.content_json) next.content_json = aiProposal.content_json
               })
               if (insights) next.ai_insights = insights
@@ -1092,6 +1167,8 @@ export function StoryEditor({
             setAiProposal(null)
             setNotice('AI proposal discarded. Your draft is unchanged.')
           }}
+          onRegenerate={aiProposal.hero ? () => void generateHeroImage() : undefined}
+          busy={working}
         />
       )}
       {article && editable && stage === 'details' && canRefineChat && (

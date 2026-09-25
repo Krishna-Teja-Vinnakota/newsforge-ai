@@ -8,8 +8,6 @@ type ArticleWrite = Pick<CmsArticle, 'title' | 'dek' | 'content_json' | 'content
 export const cmsService = {
   login: (email: string, password: string) =>
     api<AuthSession>('/auth/login', { method: 'POST', body: JSON.stringify({ email, password }) }),
-  register: (display_name: string, email: string, password: string) =>
-    api<AuthSession>('/auth/register', { method: 'POST', body: JSON.stringify({ display_name, email, password }) }),
   me: () => api<AuthUser>('/auth/me'),
   createArticle: (article: ArticleWrite) =>
     api<CmsArticle>('/cms/articles', { method: 'POST', body: JSON.stringify(article) }),

@@ -11,3 +11,7 @@ class MediaResponse(BaseModel):
     size_bytes: int
     uploader_id: str
     created_at: datetime
+    ai_generated: bool = False
+    ai_model: str | None = None
+    alt_text: str | None = None
+    disclosure: str | None = None

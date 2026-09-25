@@ -14,6 +14,7 @@ class AgentName(StrEnum):
     BODY = "body"
     TAGS = "tags"
     CHAT = "chat"
+    IMAGE = "image"
 
 
 class AgentRunStatus(StrEnum):
@@ -103,6 +104,51 @@ class ProductionRunRequest(BaseModel):
     tone: Literal["formal", "conversational", "urgent"] | None = None
 
 
+DepictionMode = Literal["documentary", "editorial_illustration", "symbolic"]
+RiskFlag = Literal["allegation", "politics", "minors", "violence", "real_person"]
+_DEPICTION_MODES = ("documentary", "editorial_illustration", "symbolic")
+_RISK_FLAGS = ("allegation", "politics", "minors", "violence", "real_person")
+
+
+class ImageBrief(BaseModel):
+    """A constrained description of a hero image. The final image prompt is built from it in server code."""
+
+    subject: str = Field(default="", max_length=300)
+    setting: str = Field(default="", max_length=300)
+    visual_elements: list[str] = Field(default_factory=list, max_length=8)
+    avoid: list[str] = Field(default_factory=list, max_length=12)
+    depiction_mode: DepictionMode = "symbolic"
+    risk_flags: list[RiskFlag] = Field(default_factory=list)
+    alt_text: str = Field(default="", max_length=300)
+    safe_to_generate: bool = True
+    # Set by server code from the content the brief was written for; never trusted from the model.
+    source_hash: str = ""
+
+    @field_validator("depiction_mode", mode="before")
+    @classmethod
+    def normalize_depiction_mode(cls, value: Any) -> str:
+        # Anything unrecognised degrades to the safest style rather than failing the whole draft.
+        return value if value in _DEPICTION_MODES else "symbolic"
+
+    @field_validator("risk_flags", mode="before")
+    @classmethod
+    def normalize_risk_flags(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            value = [value]
+        if not isinstance(value, list):
+            return []
+        return [flag for flag in value if flag in _RISK_FLAGS]
+
+    @field_validator("visual_elements", "avoid", mode="before")
+    @classmethod
+    def normalize_text_lists(cls, value: Any) -> list[str]:
+        if isinstance(value, str):
+            return [value]
+        if isinstance(value, list):
+            return [str(item) for item in value if item]
+        return []
+
+
 class ProductionResult(BaseModel):
     title: str
     dek: str
@@ -115,6 +161,7 @@ class ProductionResult(BaseModel):
     retrieved_source_ids: list[str] = Field(default_factory=list)
     retrieved_source_slugs: list[str] = Field(default_factory=list)
     hero_url: str = ""
+    image_brief: ImageBrief | None = None
 
     @field_validator("content_json", mode="before")
     @classmethod
@@ -249,6 +296,30 @@ class TagSuggestionRunRequest(BaseModel):
 
 class TagSuggestionResult(BaseModel):
     suggested_tags: list[str] = Field(default_factory=list, max_length=8)
+
+
+class ImageRunRequest(BaseModel):
+    """The editor's *current* (possibly unsaved) story text, so the image matches what is on screen."""
+
+    article_id: str
+    title: str = Field(min_length=5, max_length=180)
+    dek: str = Field(default="", max_length=400)
+    content_html: str = Field(default="", max_length=50000)
+    # A fresh key per user click; a replay (for example a network retry) returns the first result.
+    idempotency_key: str = Field(min_length=8, max_length=100)
+
+
+class HeroProposal(BaseModel):
+    url: str
+    media_id: str | None = None
+    alt_text: str = ""
+    ai_generated: bool = True
+    disclosure: str = ""
+
+
+class ImageResult(BaseModel):
+    hero: HeroProposal
+    brief: ImageBrief
 
 
 class TelemetryRunRequest(BaseModel):

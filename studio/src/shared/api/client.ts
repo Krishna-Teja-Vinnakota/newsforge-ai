@@ -2,7 +2,7 @@ import type { Article, RankingSignal, Session, User } from '../../types'
 
 export type AgentRun = {
   id: string
-  agent: 'selection' | 'production' | 'telemetry' | 'headline' | 'dek' | 'body' | 'tags' | 'chat'
+  agent: 'selection' | 'production' | 'telemetry' | 'headline' | 'dek' | 'body' | 'tags' | 'chat' | 'image'
   status: 'succeeded' | 'failed'
   output: Record<string, unknown>
   input: Record<string, unknown>
@@ -14,6 +14,15 @@ export type AgentRun = {
   // True when the model call failed and a templated fallback was returned instead of model output.
   used_fallback?: boolean
 }
+// A generated hero image is only a proposal until the editor applies it: URL and media id travel together.
+export type HeroProposal = {
+  url: string
+  media_id: string | null
+  alt_text: string
+  ai_generated: boolean
+  disclosure?: string
+}
+export type HealthStatus = { status: string; services: Record<string, boolean>; features: Record<string, boolean> }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
 export type AiLead = {
   id: string
@@ -149,6 +158,17 @@ export const api = {
     request<AgentRun>('/agents/chat', { method: 'POST', body: JSON.stringify(body) }),
   suggestTags: (body: { title: string; dek: string; content_html: string; topic: string; existing_tags: string[] }) =>
     request<AgentRun>('/agents/tags', { method: 'POST', body: JSON.stringify(body) }),
+  // The idempotency key is fixed per click, so the automatic network retry in request() replays the same
+  // image on the server instead of generating (and paying for) another one.
+  generateHeroImage: (
+    body: { article_id: string; title: string; dek: string; content_html: string },
+    idempotencyKey: string
+  ) =>
+    request<AgentRun>('/agents/image', {
+      method: 'POST',
+      body: JSON.stringify({ ...body, idempotency_key: idempotencyKey }),
+    }),
+  health: () => request<HealthStatus>('/health'),
   recalculateTelemetry: (article_id: string) =>
     request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),
   simulateTelemetry: () =>
