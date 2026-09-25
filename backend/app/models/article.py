@@ -57,6 +57,9 @@ class ArticleResponse(BaseModel):
     tags: list[str]
     hero_media_id: str | None = None
     hero_url: str | None = None
+    hero_ai_generated: bool = False
+    hero_alt_text: str | None = None
+    hero_disclosure: str | None = None
     ai_insights: dict[str, Any] | None = None
     creator: ArticleAuthor
     editor: ArticleAuthor | None = None

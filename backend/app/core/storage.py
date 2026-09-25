@@ -37,3 +37,7 @@ async def upload_public_object(content: bytes, content_type: str, filename: str)
         ContentType=content_type,
     )
     return object_key, f"{settings.s3_public_base_url.rstrip('/')}/{object_key}"
+
+
+async def delete_object(object_key: str) -> None:
+    await asyncio.to_thread(_client().delete_object, Bucket=settings.s3_bucket, Key=object_key)

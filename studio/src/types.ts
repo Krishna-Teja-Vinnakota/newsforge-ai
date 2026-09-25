@@ -1,4 +1,4 @@
-export type Role = 'admin' | 'editor' | 'reporter' | 'audience'
+export type Role = 'admin' | 'editor'
 export type User = {
   id: string
   email: string
@@ -24,6 +24,9 @@ export type Article = {
   published_at?: string | null
   hero_media_id: string | null
   hero_url: string | null
+  hero_ai_generated?: boolean
+  hero_alt_text?: string | null
+  hero_disclosure?: string | null
   ai_insights?: {
     reporter_brief?: { background?: string; key_questions?: string[]; shot_list?: string[] }
     social_posts?: string[]

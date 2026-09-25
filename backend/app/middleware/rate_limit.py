@@ -7,6 +7,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import JSONResponse
 
 from app.core.security import decode_access_token
+from app.core.settings import settings
 
 
 class RateLimitMiddleware(BaseHTTPMiddleware):
@@ -25,6 +26,9 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
         # Reader views and feedback feed ranking, so bound how fast one address can move them.
         if request.method == "POST" and path.startswith("/api/v1/articles/") and path.endswith(("/view", "/feedback")):
             return ("reader", 30)
+        # Image generation is far more expensive than text, so it gets its own, smaller budget.
+        if request.method == "POST" and path == "/api/v1/agents/image":
+            return ("image", settings.image_rate_limit_per_minute)
         # Only calls that can spend model quota count; browsing leads, runs and trend status is free.
         if request.method == "POST" and path.startswith("/api/v1/agents/"):
             return ("agents", 10)
@@ -32,7 +36,7 @@ class RateLimitMiddleware(BaseHTTPMiddleware):
 
     @staticmethod
     def _identity(request: Request, scope: str) -> str:
-        if scope == "agents":
+        if scope in {"agents", "image"}:
             authorization = request.headers.get("authorization", "")
             if authorization.lower().startswith("bearer "):
                 try:

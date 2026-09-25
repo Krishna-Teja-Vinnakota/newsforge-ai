@@ -6,25 +6,10 @@ from pymongo.errors import DuplicateKeyError
 from app.api.dependencies import get_current_user
 from app.core.database import get_database
 from app.core.security import create_access_token, hash_password, verify_password
-from app.core.settings import settings
-from app.models.user import AuthResponse, LoginRequest, RegisterRequest, UserProfileUpdate, UserResponse
-from app.services.users import new_user_document, user_response
+from app.models.user import AuthResponse, LoginRequest, UserProfileUpdate, UserResponse
+from app.services.users import user_response
 
 router = APIRouter(prefix="/auth")
-
-
-@router.post("/register", response_model=AuthResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest) -> AuthResponse:
-    email = str(payload.email).lower()
-    role = "admin" if settings.bootstrap_admin_email and email == settings.bootstrap_admin_email.lower() else "audience"
-    document = new_user_document(email, hash_password(payload.password), payload.display_name, role)
-    try:
-        result = await get_database().users.insert_one(document)
-    except DuplicateKeyError as exc:
-        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="An account already exists for this email") from exc
-    document["_id"] = result.inserted_id
-    user = user_response(document)
-    return AuthResponse(access_token=create_access_token(user.id, user.role), user=user)
 
 
 @router.post("/login", response_model=AuthResponse)

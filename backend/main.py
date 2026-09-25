@@ -11,6 +11,7 @@ from app.core.config import validate_production_configuration
 from app.core.features import ai_feature, storage_feature
 from app.core.database import ping_mongo
 from app.services.bootstrap import ensure_bootstrap_admin, ensure_default_topics
+from app.services.users import deactivate_legacy_role_users
 from app.middleware.audit import AuditMiddleware
 from app.middleware.rate_limit import RateLimitMiddleware
 from app.services.trends import start_refresh_loop, stop_refresh_loop
@@ -33,6 +34,9 @@ async def lifespan(_: FastAPI):
             logger.warning("%s disabled: %s", name, feature.reason)
     mongo_connected = await connect_to_mongo()
     if mongo_connected and await ping_mongo():
+        migrated_users = await deactivate_legacy_role_users()
+        if migrated_users:
+            logger.warning("Deactivated and converted %d legacy reporter/audience accounts to editors", migrated_users)
         await ensure_bootstrap_admin()
         await ensure_default_topics()
         start_refresh_loop()

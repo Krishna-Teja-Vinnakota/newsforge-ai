@@ -29,7 +29,13 @@ class Settings(BaseSettings):
     gemini_production_model: str = ""
     gemini_telemetry_model: str = ""
     gemini_embedding_model: str = ""
+    gemini_image_model: str = ""
     agent_timeout_seconds: int = 45
+    image_timeout_seconds: int = 90
+    image_max_bytes: int = 12 * 1024 * 1024
+    image_rate_limit_per_minute: int = 4
+    image_max_concurrent: int = 3
+    image_pending_ttl_hours: int = 24
     agent_max_weight_delta: float = 0.15
     telemetry_retention_days: int = 30
     agent_run_retention_days: int = 90

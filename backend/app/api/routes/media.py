@@ -22,6 +22,10 @@ def media_response(media: dict) -> MediaResponse:
         size_bytes=media["size_bytes"],
         uploader_id=str(media["uploader_id"]),
         created_at=media["created_at"],
+        ai_generated=media.get("ai_generated", False),
+        ai_model=media.get("ai_model"),
+        alt_text=media.get("alt_text"),
+        disclosure=media.get("disclosure"),
     )
 
 

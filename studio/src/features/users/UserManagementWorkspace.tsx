@@ -5,8 +5,8 @@ import type { Role, User } from '../../types'
 import './UserManagement.css'
 
 type EditorState = 'create' | 'edit' | 'deactivate' | null
-const roles: Role[] = ['admin', 'editor', 'reporter', 'audience']
-const empty = { display_name: '', email: '', password: '', role: 'reporter' as Role, is_active: true }
+const roles: Role[] = ['admin', 'editor']
+const empty = { display_name: '', email: '', password: '', role: 'editor' as Role, is_active: true }
 
 export function UserManagementWorkspace({ currentUser }: { currentUser: User }) {
   const [users, setUsers] = useState<User[]>([])

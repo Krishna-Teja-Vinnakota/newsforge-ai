@@ -31,4 +31,8 @@
 .ai-review-accuracy { padding: 13px; border: 1px solid #d7b96d; border-radius: 10px; background: #fff8e7; }
 .ai-review-accuracy > b { display: block; margin-bottom: 5px; }
 .ai-review-accuracy ul { margin: 10px 0 0; padding-left: 18px; font-size: 13px; line-height: 1.45; }
+.ai-review-no-image { display: grid; min-height: 120px; place-content: center; background: var(--soft); color: var(--muted); font-size: 13px; }
+.ai-review-proposed-image { position: relative; display: grid; }
+.ai-review-badge { position: absolute; top: 8px; left: 8px; padding: 3px 8px; border-radius: 999px; background: rgb(10 14 22 / 78%); color: #fff; font-size: 11px; font-weight: 700; }
+.ai-review .dialog-actions button { display: inline-flex; gap: 6px; align-items: center; }
 @media (max-width: 620px) { .ai-review-body, .ai-review-images { grid-template-columns: 1fr; } }

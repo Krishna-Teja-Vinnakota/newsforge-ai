@@ -8,6 +8,7 @@ from app.core.settings import settings
 from app.models.agents import ProductionResult
 from app.services.content import clean_editorial_context, sanitize_html
 from app.services.agent_metrics import record_agent_metrics
+from app.services.image_prompt import fallback_brief
 from app.services.image_search import find_topical_image_url
 from app.services.retrieval import retrieve_editorial_context
 
@@ -82,6 +83,7 @@ def fallback_draft(headline: str, topic: str, context: str, sources: list[dict])
         "push_notification": headline[:110],
         "provenance": [source["slug"] for source in sources] or ["Editor-supplied lead; verify before publication."],
         "hero_url": generated_hero_url(headline, topic),
+        "image_brief": fallback_brief(headline, topic).model_dump(mode="json"),
     }
 
 

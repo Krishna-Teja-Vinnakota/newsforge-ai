@@ -905,6 +905,36 @@ html[data-theme='dark'] .ai-generate-banner {
 .hero-url {
   margin-bottom: 16px;
 }
+.hero-ai-row {
+  display: grid;
+  gap: 6px;
+  margin: 0 0 16px;
+}
+.hero-ai-button {
+  display: inline-flex;
+  gap: 8px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--soft);
+  color: var(--ink);
+  padding: 10px 12px;
+  font-size: 13px;
+  font-weight: 600;
+}
+.hero-ai-button:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+.hero-ai-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+.hero-ai-row small {
+  color: var(--muted);
+  font-size: 12px;
+}
 .story-preview {
   max-width: 900px;
   margin: auto;
