@@ -12,13 +12,30 @@
   z-index: 8;
   display: flex;
   flex-wrap: wrap;
-  gap: 7px;
+  gap: 10px;
   align-items: center;
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   border-radius: 18px 18px 0 0;
   background: color-mix(in srgb, var(--surface) 94%, transparent);
   backdrop-filter: blur(16px);
+}
+.nf-toolbar-tools {
+  display: flex;
+  flex: 1;
+  flex-wrap: wrap;
+  gap: 7px;
+  align-items: center;
+  min-width: 0;
+}
+.nf-toolbar-end {
+  display: flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+}
+.nf-toolbar-end .action-menu-list {
+  z-index: 30;
 }
 .nf-history,
 .nf-toolbar-group {
@@ -69,29 +86,26 @@
   outline: 0;
   padding: 38px clamp(32px, 6vw, 86px);
   font:
-    19px/1.8 Georgia,
-    serif;
+    19px/1.8 'DM Sans',
+    sans-serif;
   color: var(--ink);
 }
 .nf-editor .ProseMirror h1 {
   font:
-    800 43px/1.1 'Playfair Display',
-    Georgia,
-    serif;
+    800 43px/1.1 'DM Sans',
+    sans-serif;
   margin: 1.25em 0 0.35em;
 }
 .nf-editor .ProseMirror h2 {
   font:
-    800 31px/1.2 'Playfair Display',
-    Georgia,
-    serif;
+    800 31px/1.2 'DM Sans',
+    sans-serif;
   margin: 1.18em 0 0.35em;
 }
 .nf-editor .ProseMirror h3 {
   font:
-    800 24px/1.3 'Playfair Display',
-    Georgia,
-    serif;
+    800 24px/1.3 'DM Sans',
+    sans-serif;
   margin: 1em 0 0.35em;
 }
 .nf-editor .ProseMirror p {

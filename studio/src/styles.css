@@ -42,11 +42,10 @@ button {
   cursor: pointer;
 }
 .eyebrow {
-  font:
-    600 10px 'DM Mono',
-    monospace;
+  font: 600 10px/1.2 'DM Sans', sans-serif;
   color: var(--accent);
   letter-spacing: 0.15em;
+  text-transform: uppercase;
 }
 .brand {
   font:
@@ -104,9 +103,7 @@ select:focus {
 }
 .login-card h1 {
   margin: 10px 0;
-  font:
-    600 48px/1 'Playfair Display',
-    serif;
+  font: 600 48px/1 'DM Sans', sans-serif;
 }
 .login-card h1 em {
   color: var(--mint);
@@ -156,11 +153,19 @@ select:focus {
   align-items: center;
   gap: 10px;
   border: 0;
-  border-radius: 9px;
+  border-radius: 4px;
   background: transparent;
   color: #b5c0d4;
   padding: 12px;
   text-align: left;
+}
+.sidebar nav button .nav-icon {
+  display: inline-flex;
+  width: 18px;
+  height: 18px;
+  align-items: center;
+  justify-content: center;
+  color: inherit;
 }
 .sidebar nav button.active,
 .sidebar nav button:hover {
@@ -171,6 +176,11 @@ select:focus {
   width: 100%;
   max-width: 1400px;
   padding: 50px;
+}
+.workspace:has(.story-wizard),
+.workspace:has(.full-editor) {
+  max-width: none;
+  padding: 0;
 }
 .profile-form {
   max-width: 520px;
@@ -200,5 +210,9 @@ select:focus {
   }
   .workspace {
     padding: 24px;
+  }
+  .workspace:has(.story-wizard),
+  .workspace:has(.full-editor) {
+    padding: 0;
   }
 }

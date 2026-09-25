@@ -1,5 +1,5 @@
 import { type KeyboardEvent as ReactKeyboardEvent, useEffect, useRef, useState } from 'react'
-import { Wand2 } from 'lucide-react'
+import { Sparkles, Wand2 } from 'lucide-react'
 import './ActionMenu.css'
 
 export type ActionMenuItem = {
@@ -14,16 +14,19 @@ export function ActionMenu({
   items,
   disabled = false,
   align = 'start',
+  variant = 'default',
 }: {
   label: string
   items: ActionMenuItem[]
   disabled?: boolean
   align?: 'start' | 'end'
+  variant?: 'default' | 'sparkle'
 }) {
   const [open, setOpen] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
   const triggerRef = useRef<HTMLButtonElement>(null)
   const listRef = useRef<HTMLDivElement>(null)
+  const Icon = variant === 'sparkle' ? Sparkles : Wand2
 
   useEffect(() => {
     if (!open) return
@@ -76,7 +79,7 @@ export function ActionMenu({
   }
 
   return (
-    <div className="action-menu" ref={containerRef}>
+    <div className={`action-menu${variant === 'sparkle' ? ' action-menu--sparkle' : ''}`} ref={containerRef}>
       <button
         type="button"
         ref={triggerRef}
@@ -84,10 +87,11 @@ export function ActionMenu({
         aria-haspopup="menu"
         aria-expanded={open}
         aria-label={label}
+        title={label}
         disabled={disabled}
         onClick={() => setOpen((value) => !value)}
       >
-        <Wand2 size={16} />
+        <Icon size={variant === 'sparkle' ? 15 : 16} />
       </button>
       {open && (
         <div

@@ -38,8 +38,8 @@
 }
 .settings-workspace h1 {
   font:
-    600 43px 'Playfair Display',
-    serif;
+    600 43px 'DM Sans',
+    sans-serif;
   margin: 6px 0;
 }
 .settings-intro {
@@ -126,8 +126,8 @@
 }
 .taxonomy-panel header h2 {
   font:
-    600 25px 'Playfair Display',
-    serif;
+    600 25px 'DM Sans',
+    sans-serif;
   margin: 0;
 }
 .taxonomy-panel header span {

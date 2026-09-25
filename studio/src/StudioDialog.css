@@ -27,9 +27,8 @@
 .studio-dialog h2 {
   margin: 5px 0 0;
   font:
-    700 25px 'Playfair Display',
-    Georgia,
-    serif;
+    700 25px 'DM Sans',
+    sans-serif;
 }
 .dialog-close {
   border: 0;

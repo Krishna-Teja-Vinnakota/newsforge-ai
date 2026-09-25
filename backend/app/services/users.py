@@ -8,13 +8,13 @@ from app.models.user import UserResponse
 def user_response(user: dict) -> UserResponse:
     return UserResponse(
         id=str(user["_id"]),
-        email=user["email"],
-        display_name=user["display_name"],
-        role=user["role"],
+        email=user.get("email", ""),
+        display_name=user.get("display_name", ""),
+        role=user.get("role", "audience"),
         avatar_media_id=str(user["avatar_media_id"]) if user.get("avatar_media_id") else None,
         is_active=user.get("is_active", True),
-        created_at=user["created_at"],
-        updated_at=user["updated_at"],
+        created_at=user.get("created_at"),
+        updated_at=user.get("updated_at"),
     )
 
 
