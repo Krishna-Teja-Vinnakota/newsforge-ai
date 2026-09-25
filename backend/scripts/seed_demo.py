@@ -2,7 +2,7 @@
 
 import asyncio
 import sys
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 # Support `python scripts/seed_demo.py` from the backend directory.
@@ -98,7 +98,20 @@ def source_document(source: dict) -> dict:
 async def reset_demo_data(database=None) -> dict[str, int]:
     """Idempotently replace only NewsForge-owned demo records, never live data."""
     db = database or get_database()
-    for collection_name in ("lead_inbox", "editorial_index", "ranking_signals", "telemetry_events", "articles", "users"):
+    demo_article_ids = [item["_id"] async for item in db.articles.find({"demo": True}, {"_id": 1})]
+    if demo_article_ids:
+        for collection_name in ("article_daily_metrics", "view_events", "feedback_events"):
+            await db[collection_name].delete_many({"article_id": {"$in": demo_article_ids}})
+    for collection_name in (
+        "lead_inbox",
+        "editorial_index",
+        "ranking_signals",
+        "ranking_signal_contributions",
+        "telemetry_events",
+        "telemetry_rollups",
+        "articles",
+        "users",
+    ):
         await db[collection_name].delete_many({"demo": True})
 
     await db.lead_inbox.insert_many([lead_document(*lead) for lead in LEADS])
@@ -107,6 +120,21 @@ async def reset_demo_data(database=None) -> dict[str, int]:
     await db.articles.insert_many([{
         "_id": source["article_id"], "demo": True, "slug": source["slug"], "title": source["title"], "dek": source["summary"], "content": source["body"], "content_html": f"<p>{source['body']}</p>", "content_json": {}, "topic": source["topic"], "geo": source["geo"], "tags": [source["topic"], "semiconductors"], "status": "published", "creator_id": DEMO_USER_ID, "editor_id": DEMO_USER_ID, "hero_media_id": None, "hero_url": PLACEHOLDER_HERO_URL, "created_at": DEMO_TIMESTAMP, "updated_at": DEMO_TIMESTAMP, "published_at": DEMO_TIMESTAMP, "scheduled_for": None, "metrics": {"views": 0, "likes": 0, "dislikes": 0, "engagement_ratio": 0, "popularity_score": 0, "seo_score": None},
     } for source in SOURCES])
+    await db.article_daily_metrics.insert_many(
+        [
+            {
+                "demo": True,
+                "article_id": source["article_id"],
+                "day": (DEMO_TIMESTAMP + timedelta(days=1)).date().isoformat(),
+                "views": 2_800 + index * 650,
+                "likes": 110 + index * 20,
+                "dislikes": 8 + index,
+                "created_at": DEMO_TIMESTAMP + timedelta(days=1),
+                "updated_at": DEMO_TIMESTAMP + timedelta(days=1),
+            }
+            for index, source in enumerate(SOURCES)
+        ]
+    )
     await db.ranking_signals.insert_one({"_id": "demo|baseline", "demo": True, "topic": "demo", "geo": "baseline", "weight_delta": 0.0, "sample_size": 0, "confidence": 0.5, "last_updated": DEMO_TIMESTAMP})
     return {"seeded_leads": len(LEADS), "indexed_sources": len(SOURCES), "seeded_articles": len(SOURCES), "seeded_users": 1}
 

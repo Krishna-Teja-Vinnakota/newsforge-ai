@@ -86,6 +86,8 @@ Important backend settings:
 | `GEMINI_API_KEY`, `GOOGLE_CLOUD_PROJECT`, `GOOGLE_CLOUD_LOCATION` | Gemini provider configuration |
 | `GEMINI_SELECTION_MODEL`, `GEMINI_PRODUCTION_MODEL`, `GEMINI_TELEMETRY_MODEL` | Per-agent model selection |
 | `AGENT_TIMEOUT_SECONDS`, `AGENT_MAX_WEIGHT_DELTA` | Agent execution and bounded learning-loop controls |
+| `AUDIENCE_SUBSCRIBER_COUNT`, `AUDIENCE_SUBSCRIBER_VIEW_RATE` | Optional, explicitly configured subscriber reach input; ignored when count is zero |
+| `AUDIENCE_FORECAST_MIN_BASELINE_STORIES`, `AUDIENCE_FORECAST_MIN_MODEL_STORIES` | Completed seven-day outcome thresholds for baseline and calibrated forecasts |
 
 For Gemini, set `LLM_PROVIDER=gemini_enterprise` and provide the Google Cloud/Gemini values through your environment or secret manager. Browser applications never receive Gemini credentials.
 
@@ -139,9 +141,10 @@ newsforge-ai/
 
 ### AI engine
 
-- **Selection agent:** ranks editorial leads using signals and produces score explanations and angles.
+- **Selection agent:** ranks editorial leads using signals, produces score explanations and angles, and exposes an auditable seven-day audience forecast when sufficient outcome data exists.
 - **Production agent:** turns an approved lead into a grounded draft and editorial output.
 - **Telemetry agent:** analyzes engagement, recommends bounded ranking-signal adjustments, and feeds the next selection cycle.
+- **Audience forecast:** records deduplicated daily readership, starts with a demand-only label, advances to comparable-story baselines, then uses a calibrated statistical model. The LLM does not invent readership numbers.
 - **Workflow graph:** persists workflow state and exposes traceable human approval pauses.
 - **Mock provider:** supports deterministic tests, offline local development, and demos.
 
@@ -157,7 +160,7 @@ All API routes are prefixed with `/api/v1`. Interactive endpoint documentation i
 | Feedback and telemetry | `POST /articles/{id}/view`, `POST /articles/{id}/feedback`, `GET /telemetry/signals` |
 | CMS | `POST /cms/articles`, `PATCH /cms/articles/{id}`, `POST /cms/articles/{id}/submit-review`, `POST /cms/articles/{id}/publish` |
 | Media | `POST /media/upload` |
-| AI agents | `POST /agents/selection/run`, `POST /agents/produce`, `POST /agents/telemetry/recalculate`, `GET /agents/runs` |
+| AI agents | `POST /agents/selection/run`, `GET/PUT /agents/selection/weights`, `POST /agents/produce`, `POST /agents/telemetry/recalculate`, `GET /agents/runs` |
 | Workflow | `POST /workflow/start`, `POST /workflow/{thread_id}/resume`, `GET /workflow/{thread_id}/state` |
 | Administration | `POST /admin/reset-demo`, retention-maintenance endpoints |
 

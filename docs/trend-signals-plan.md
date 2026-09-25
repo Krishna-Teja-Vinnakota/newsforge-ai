@@ -7,7 +7,7 @@ Status: **implemented; post-review fixes applied (ambiguous geo codes, stricter 
 Add two audited score terms, `trend_boost` and `coverage_adjustment`, to lead ranking in `backend/app/agents/selection_agent.py`. Ingestion and scoring are controlled by separate flags, both off by default.
 
 ```
-final_score = base_score + learned_weight_delta + trend_boost + coverage_adjustment
+final_score = base_score + selection_weight_adjustment + learned_weight_delta + trend_boost + coverage_adjustment
 ```
 
 Principles:

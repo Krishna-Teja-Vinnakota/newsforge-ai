@@ -44,9 +44,20 @@ function sourceLabel(lead: AiLead) {
   return lead.trend_evidence?.[0]?.source || (originKey(lead) === 'trend_feed' ? 'Trend Feed' : 'Wire Desk')
 }
 
-function readershipEstimate(score: number) {
-  const value = Math.max(1, Math.round(score * 42))
-  return `+${value}k Est. Readership`
+function compactReaders(value: number) {
+  return new Intl.NumberFormat('en', { notation: 'compact', maximumFractionDigits: 1 }).format(value)
+}
+
+function audienceLabel(lead: AiLead) {
+  const forecast = lead.audience_forecast
+  if (!forecast) return 'Audience data pending'
+  if (forecast.lower_bound !== null && forecast.upper_bound !== null) {
+    return `${forecast.horizon_days}-day forecast: ${compactReaders(forecast.lower_bound)}–${compactReaders(forecast.upper_bound)}`
+  }
+  const sample = forecast.telemetry_sample_size
+    ? ` · ${compactReaders(forecast.telemetry_sample_size)} reader sample`
+    : ' · collecting data'
+  return `Audience demand: ${forecast.audience_demand}${sample}`
 }
 
 export function LeadInbox({
@@ -250,7 +261,7 @@ export function LeadInbox({
                     <span>·</span>
                     <span>Source: {sourceLabel(lead)}</span>
                     <span>·</span>
-                    <span className="lead-readership">{readershipEstimate(score)}</span>
+                    <span className="lead-readership">{audienceLabel(lead)}</span>
                   </p>
                   <div className="ai-angle-brief">
                     <strong>AI Angle Brief:</strong> {angle}

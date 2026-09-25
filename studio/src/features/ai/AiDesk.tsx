@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Clock3, RefreshCw } from 'lucide-react'
-import { AiLead, api } from '../../shared/api/client'
+import { AiLead, api, type HealthStatus, type TrendStatus } from '../../shared/api/client'
 import { LeadRanker } from './LeadRanker'
 import { LeadInbox } from './LeadInbox'
 import { ScoreInspectorDrawer } from './ScoreInspectorDrawer'
@@ -17,6 +17,8 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
   const [resettingDemo, setResettingDemo] = useState(false)
   const [inspectedLead, setInspectedLead] = useState<AiLead | null>(null)
   const [updatedAt, setUpdatedAt] = useState(() => Date.now())
+  const [health, setHealth] = useState<HealthStatus | null>(null)
+  const [trendStatus, setTrendStatus] = useState<TrendStatus | null>(null)
 
   const load = () => {
     void api
@@ -28,6 +30,20 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
       .catch((error) => setNotice(error.message))
   }
   useEffect(load, [])
+
+  useEffect(() => {
+    const loadOperationalStatus = () => {
+      void Promise.all([api.health(), api.trendStatus()])
+        .then(([nextHealth, nextTrends]) => {
+          setHealth(nextHealth)
+          setTrendStatus(nextTrends)
+        })
+        .catch((error) => setNotice(error instanceof Error ? error.message : 'Unable to load pipeline status.'))
+    }
+    loadOperationalStatus()
+    const timer = window.setInterval(loadOperationalStatus, 30_000)
+    return () => window.clearInterval(timer)
+  }, [])
 
   const decide = async (lead: AiLead, decision: 'reject') => {
     try {
@@ -84,6 +100,29 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
   )
   const pendingCount = leads.filter((lead) => lead.status === 'pending').length
   const minutesAgo = Math.max(0, Math.round((Date.now() - updatedAt) / 60000))
+  const pipelineHealthy = health?.status === 'ok' && health.features.ai_agents === true
+  const pipelineLabel = health === null
+    ? 'Checking pipeline…'
+    : pipelineHealthy
+      ? 'Pipeline Healthy'
+      : health.status === 'degraded'
+        ? 'Pipeline Degraded'
+        : 'AI Agents Disabled'
+  const healthyTrendSources = trendStatus?.sources.filter((source) =>
+    ['success', 'success_empty'].includes(source.status)
+  ).length ?? 0
+  const trendGeo = trendStatus?.sources[0]?.geo
+  const trendSyncLabel = trendStatus === null
+    ? 'Checking trend feeds…'
+    : trendStatus.status === 'disabled'
+      ? 'Trend feeds: Disabled'
+      : trendStatus.sources.length === 0
+        ? 'Trend feeds: Not configured'
+        : `${trendGeo ?? 'Configured'} trend feeds: ${healthyTrendSources}/${trendStatus.sources.length} healthy`
+  const nextTrendRefreshAt = trendStatus?.sources
+    .map((source) => source.next_refresh_at)
+    .filter((value): value is string => Boolean(value))
+    .sort()[0] ?? null
 
   return (
     <section className="ai-desk">
@@ -92,9 +131,9 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
           <p className="eyebrow">PHASE 7 · AI NEWSROOM</p>
           <div className="ai-desk-title-row">
             <h1>AI editorial desk</h1>
-            <span className="pipeline-badge">
+            <span className={`pipeline-badge${pipelineHealthy ? '' : ' is-degraded'}`}>
               <span className="pipeline-dot" aria-hidden />
-              Live Pipeline Active
+              {pipelineLabel}
             </span>
           </div>
         </div>
@@ -121,11 +160,16 @@ export function AiDesk({ onDraftCreated }: { onDraftCreated?: (articleId: string
                 }.`}
             </p>
           </div>
-          <span className="desk-sync-pill">Ohio Desk Sync: OK</span>
+          <span className="desk-sync-pill">{trendSyncLabel}</span>
         </div>
       )}
 
-      <LeadRanker onRanked={load} onNotice={setNotice} />
+      <LeadRanker
+        onRanked={load}
+        onNotice={setNotice}
+        nextTrendRefreshAt={nextTrendRefreshAt}
+        trendRefreshStatus={trendStatus?.status ?? 'checking'}
+      />
       <LeadInbox
         leads={sortedLeads}
         draftingLeadId={draftingLeadId}

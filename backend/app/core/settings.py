@@ -1,5 +1,6 @@
 from functools import lru_cache
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -37,6 +38,10 @@ class Settings(BaseSettings):
     image_max_concurrent: int = 3
     image_pending_ttl_hours: int = 24
     agent_max_weight_delta: float = 0.15
+    audience_subscriber_count: int = Field(default=0, ge=0)
+    audience_subscriber_view_rate: float = Field(default=0.20, ge=0, le=1)
+    audience_forecast_min_baseline_stories: int = Field(default=3, ge=1)
+    audience_forecast_min_model_stories: int = Field(default=30, ge=3)
     telemetry_retention_days: int = 30
     agent_run_retention_days: int = 90
     audit_retention_days: int = 365

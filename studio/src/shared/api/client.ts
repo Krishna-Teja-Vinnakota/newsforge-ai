@@ -23,7 +23,31 @@ export type HeroProposal = {
   disclosure?: string
 }
 export type HealthStatus = { status: string; services: Record<string, boolean>; features: Record<string, boolean> }
+export type TrendSourceStatus = {
+  source: string
+  geo: string
+  status: string
+  count: number
+  duration_ms: number
+  last_success_at: string | null
+  error_code: string | null
+  next_refresh_at: string | null
+}
+export type TrendStatus = { status: string; sources: TrendSourceStatus[]; leads_promoted: string[] }
 export type ChatMessage = { role: 'user' | 'assistant'; content: string }
+export type AudienceForecast = {
+  status: 'insufficient_data' | 'historical_baseline' | 'calibrated_model'
+  horizon_days: number
+  predicted_readers: number | null
+  lower_bound: number | null
+  upper_bound: number | null
+  confidence: 'low' | 'medium' | 'high'
+  audience_demand: 'low' | 'moderate' | 'high'
+  comparable_stories: number
+  telemetry_sample_size: number
+  model_version: string
+  factors: string[]
+}
 export type AiLead = {
   id: string
   headline: string
@@ -35,6 +59,7 @@ export type AiLead = {
   reasoning: string | null
   base_score: number
   learned_weight_delta: number
+  selection_weight_adjustment: number
   final_score: number
   previous_rank: number | null
   current_rank: number | null
@@ -52,12 +77,21 @@ export type AiLead = {
   why_now: string | null
   origin: string
   score_audit: Record<string, unknown>
+  audience_forecast: AudienceForecast | null
+}
+export type SelectionWeights = {
+  timeliness: number
+  economic_impact: number
+  local_demand: number
+  updated_at?: string | null
+  updated_by?: string | null
 }
 export type TelemetrySimulationResponse = {
   status: 'success'
   updated_signal: RankingSignal
   affected_leads_count: number
 }
+export type TelemetryConfig = { max_weight_delta: number; automatic_processing: boolean }
 export type ResetDemoDataResponse = {
   status: 'success'
   seeded_leads: number
@@ -139,6 +173,12 @@ export const api = {
   retryAgentRun: (id: string) => request<AgentRun>(`/agents/runs/${id}/retry`, { method: 'POST', body: '{}' }),
   rankLeads: (leads: { id: string; headline: string; topic: string; geo: string }[]) =>
     request<AgentRun>('/agents/selection/run', { method: 'POST', body: JSON.stringify({ leads }) }),
+  selectionWeights: () => request<SelectionWeights>('/agents/selection/weights'),
+  updateSelectionWeights: (weights: Pick<SelectionWeights, 'timeliness' | 'economic_impact' | 'local_demand'>) =>
+    request<SelectionWeights>('/agents/selection/weights', {
+      method: 'PUT',
+      body: JSON.stringify(weights),
+    }),
   produceDraft: (body: {
     headline: string
     topic: string
@@ -169,6 +209,7 @@ export const api = {
       body: JSON.stringify({ ...body, idempotency_key: idempotencyKey }),
     }),
   health: () => request<HealthStatus>('/health'),
+  trendStatus: () => request<TrendStatus>('/agents/trends/status'),
   recalculateTelemetry: (article_id: string) =>
     request<AgentRun>('/agents/telemetry/recalculate', { method: 'POST', body: JSON.stringify({ article_id }) }),
   simulateTelemetry: () =>
@@ -189,6 +230,7 @@ export const api = {
   ) => request<WorkflowState>(`/workflow/${threadId}/resume`, { method: 'POST', body: JSON.stringify(body) }),
   workflowState: (threadId: string) => request<WorkflowState>(`/workflow/${threadId}/state`),
   rankingSignals: () => request<RankingSignal[]>('/telemetry/signals'),
+  telemetryConfig: () => request<TelemetryConfig>('/telemetry/config'),
   aiLeads: () => request<AiLead[]>('/agents/leads'),
   decideLead: (id: string, decision: 'approve' | 'reject') =>
     request<AiLead>(`/agents/leads/${id}/${decision}`, { method: 'POST', body: '{}' }),

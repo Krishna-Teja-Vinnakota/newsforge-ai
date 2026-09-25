@@ -22,6 +22,71 @@ async def test_selection_is_deterministic_and_uses_requested_tie_breaks(db):
     assert [item.lead_id for item in result.ranked] == ["newer", "alpha", "bravo"]
     assert [item.current_rank for item in result.ranked] == [1, 2, 3]
     assert all(item.final_score == round(item.base_score + item.learned_weight_delta, 4) for item in result.ranked)
+    assert all(item.audience_forecast.status == "insufficient_data" for item in result.ranked)
+    stored = await db.lead_inbox.find_one({"lead_id": "newer"})
+    assert stored["audience_forecast"]["predicted_readers"] is None
+
+
+@pytest.mark.asyncio
+async def test_selection_weights_are_persisted_and_change_ranking(db, client, admin_headers):
+    now = datetime.now(UTC)
+    leads = [
+        {
+            "id": "breaking-sports",
+            "headline": "Breaking championship result announced today",
+            "topic": "sports",
+            "geo": "global",
+            "published_at": now.isoformat(),
+        },
+        {
+            "id": "market-report",
+            "headline": "Major market investment and jobs report",
+            "topic": "business",
+            "geo": "global",
+            "published_at": (now - timedelta(days=14)).isoformat(),
+        },
+    ]
+
+    saved = await client.put(
+        "/api/v1/agents/selection/weights",
+        headers=admin_headers,
+        json={"timeliness": 100, "economic_impact": 0, "local_demand": 0},
+    )
+    assert saved.status_code == 200
+    stored = await db.selection_settings.find_one({"_id": "global"})
+    assert stored["timeliness"] == 100
+    assert stored["updated_by"]
+
+    timely_run = await client.post(
+        "/api/v1/agents/selection/run", headers=admin_headers, json={"leads": leads}
+    )
+    assert timely_run.status_code == 200
+    timely_ranked = timely_run.json()["output"]["ranked"]
+    assert timely_ranked[0]["lead_id"] == "breaking-sports"
+    assert timely_ranked[0]["score_audit"]["selection_weights"]["timeliness"] == 100
+
+    saved = await client.put(
+        "/api/v1/agents/selection/weights",
+        headers=admin_headers,
+        json={"timeliness": 0, "economic_impact": 100, "local_demand": 0},
+    )
+    assert saved.status_code == 200
+    economic_run = await client.post(
+        "/api/v1/agents/selection/run", headers=admin_headers, json={"leads": leads}
+    )
+    economic_ranked = economic_run.json()["output"]["ranked"]
+    assert economic_ranked[0]["lead_id"] == "market-report"
+    assert economic_ranked[0]["selection_weight_adjustment"] != 0
+
+
+@pytest.mark.asyncio
+async def test_selection_weights_reject_invalid_total(client, admin_headers):
+    response = await client.put(
+        "/api/v1/agents/selection/weights",
+        headers=admin_headers,
+        json={"timeliness": 50, "economic_impact": 50, "local_demand": 50},
+    )
+    assert response.status_code == 422
 
 
 def test_priority_scores_are_strictly_clamped():

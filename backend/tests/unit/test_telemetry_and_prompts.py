@@ -38,6 +38,9 @@ async def test_telemetry_confidence_bounds_and_retention(db):
     assert _confidence(1.0, 100_000) == 0.99
     signal = await update_ranking_signal('technology', 'Ohio', {'views': 1000, 'engagement_ratio': 0.9})
     assert -0.15 <= signal.weight_delta <= 0.15
+    repeated = await update_ranking_signal('technology', 'Ohio', {'views': 1000, 'engagement_ratio': 0.9})
+    assert repeated.weight_delta == signal.weight_delta
+    assert repeated.sample_size == signal.sample_size == 1000
     old = datetime.now(UTC) - timedelta(days=400)
     await db.telemetry_events.insert_one({'timestamp': old})
     await db.agent_runs.insert_one({'created_at': old})
