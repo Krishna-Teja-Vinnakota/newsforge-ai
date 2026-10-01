@@ -37,7 +37,7 @@ import './styles.css'
 const news = newsRepository.getSnapshot()
 
 function ArticlePage({ onSave, saved, story }: { onSave: () => void; saved: boolean; story?: Story }) {
-  const article = story ?? news.hero
+  const article: Omit<Story, 'id'> & { id?: string } = story ?? news.hero
   const articleIndex = news.stories.findIndex((item) => item.id === article.id)
   const previousStory = articleIndex > 0 ? news.stories[articleIndex - 1] : undefined
   const nextStory = articleIndex >= 0 ? news.stories[articleIndex + 1] : news.stories[0]
