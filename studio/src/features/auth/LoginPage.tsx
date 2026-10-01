@@ -3,8 +3,8 @@ import { api, saveToken } from '../../shared/api/client'
 import type { User } from '../../types'
 
 export function LoginPage({ onSignedIn }: { onSignedIn: (user: User) => void }) {
-  const [email, setEmail] = useState('admin@newsforge.dev')
-  const [password, setPassword] = useState('NewsForgeAdmin#2026')
+  const [email, setEmail] = useState('')
+  const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const submit = async (event: FormEvent) => {
     event.preventDefault()

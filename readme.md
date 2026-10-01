@@ -2,6 +2,13 @@
 
 NewsForge AI is an editorial platform with a public news experience, a role-aware newsroom workspace, and a human-controlled AI desk. It helps editorial teams move a story from lead intake and AI ranking through approval, drafting, review, publishing, and audience-feedback-informed reranking.
 
+## What this demonstrates
+
+- **Agent workflow** — a LangGraph pipeline (`intake → selection → retrieve/draft → review → publish → telemetry → rerank`) with separate selection, production and telemetry agents, each with its own model and a deterministic mock mode for offline runs.
+- **Human approval checkpoints** — the AI never publishes. Ranked leads need editor approval before drafting, drafts go through editorial review, and every step is recorded in workflow history and agent-run records.
+- **Audience forecasting** — estimated audience ranges with confidence, a baseline-then-calibrated model gated by completed-story thresholds, and a bounded feedback loop (`AGENT_MAX_WEIGHT_DELTA`) that reranks stories from real telemetry.
+- **Production hygiene** — JWT auth with role and ownership checks, no shipped credentials, and startup rejection of unsafe defaults in production.
+
 ## What is in this repository
 
 - **Public reader (`frontend/`)** — React/Vite news site with article feeds, article reading, trending stories, weather/location utilities, and reader feedback controls.
@@ -42,6 +49,7 @@ The AI workflow follows `intake → selection → human approval → retrieve/dr
 ```bash
 git clone <repository-url>
 cd newsforge-ai
+cp .env.example .env   # then set BOOTSTRAP_ADMIN_EMAIL / BOOTSTRAP_ADMIN_PASSWORD
 docker compose up --build
 ```
 
@@ -56,14 +64,7 @@ This starts the full local stack:
 | MinIO S3 API | http://localhost:9000 |
 | MongoDB | `mongodb://localhost:27017` |
 
-The default configuration uses mock AI, so a Gemini credential is not required for local development. The backend bootstraps an administrator using the Docker Compose defaults:
-
-```text
-Email:    admin@newsforge.dev
-Password: NewsForgeAdmin#2026
-```
-
-Change these values before exposing any environment beyond local development.
+The default configuration uses mock AI, so a Gemini credential is not required for local development. No credentials ship with the repository: before the first start, run `cp .env.example .env` and set `BOOTSTRAP_ADMIN_EMAIL` and `BOOTSTRAP_ADMIN_PASSWORD`. The backend creates that administrator on first boot, and Compose refuses to start until both are set.
 
 Stop the stack with `docker compose down`. Use `docker compose down -v` only when you intentionally want to remove local MongoDB and MinIO data.
 

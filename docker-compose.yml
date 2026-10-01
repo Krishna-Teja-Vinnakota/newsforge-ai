@@ -60,8 +60,8 @@ services:
       CORS_ORIGINS: http://localhost:${FRONTEND_PORT:-5173},http://localhost:${STUDIO_PORT:-5174},http://localhost:${BACKEND_PORT:-8000}
       APP_ENV: development
       ENVIRONMENT: ${ENVIRONMENT:-development}
-      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:-admin@newsforge.dev}
-      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:-NewsForgeAdmin#2026}
+      BOOTSTRAP_ADMIN_EMAIL: ${BOOTSTRAP_ADMIN_EMAIL:?Set BOOTSTRAP_ADMIN_EMAIL in .env (see .env.example)}
+      BOOTSTRAP_ADMIN_PASSWORD: ${BOOTSTRAP_ADMIN_PASSWORD:?Set BOOTSTRAP_ADMIN_PASSWORD in .env (see .env.example)}
       BOOTSTRAP_ADMIN_DISPLAY_NAME: ${BOOTSTRAP_ADMIN_DISPLAY_NAME:-NewsForge Administrator}
       JWT_SECRET: ${JWT_SECRET:-development-only-change-me}
       LLM_PROVIDER: ${LLM_PROVIDER:-mock}
